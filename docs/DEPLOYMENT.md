@@ -142,12 +142,38 @@ That route is open only while no password exists; afterwards it needs the curren
 ## Docker
 
 ```bash
-docker compose -f docker/compose.yaml up -d
+docker compose --env-file .env -f docker/compose.yaml up -d --build
 ```
+
+`--env-file .env` is not optional. Compose resolves a bare `.env` relative to the
+**compose file**, so from `docker/` your repo-root `.env` is invisible and every value
+in it arrives empty — `GCA_BRIDGE_TOKEN` included, which leaves the server generating
+its own secret and rejecting every post the host bridge makes. Nothing warns you;
+`docker compose --env-file .env -f docker/compose.yaml config` is how you check.
 
 The image builds the UI and server, then flattens the workspace with `pnpm deploy`,
 so the runtime carries no symlinks into a workspace root that does not exist there.
 It runs as `node`, includes a healthcheck, and uses tini for signal handling.
+
+### What a rebuild does and does not replace
+
+The image is code; the `/data` volume is state. `--build` replaces the first and never
+touches the second, which is the point — your database, master key and device
+configuration survive a rebuild.
+
+The consequence is that **shipping a new default changes nothing for an instance that
+already exists.** A default applies when a settings row is written, and an existing row
+was written before the setting existed. The runtime therefore lays module defaults
+under the stored row at load time, so a setting added in a new version takes effect on
+the next restart rather than waiting for someone to re-save the form. Without that, the
+feature is in the image, switched off, with nothing to indicate why.
+
+Two other things live outside the image and are never updated by rebuilding it:
+
+- **The run configuration** — the env file above, and anything else passed at `up`.
+- **Host-side components.** The status-line bridge and `gca-claude-bridge push` run on
+  the host, not in the container. Rebuilding the image does not rebuild them; run
+  `pnpm build` on the host and restart whatever supervises them.
 
 Requirements:
 

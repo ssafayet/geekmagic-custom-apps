@@ -493,7 +493,7 @@ export class ModuleRuntimeManager {
       instanceId: record.id,
       moduleId: record.moduleId,
       instanceName: record.name,
-      settings: record.settings,
+      settings: settingsWithDefaults(entry.module.defaultSettings, record.settings),
       logger: {
         debug: (payload, message) => logChild(logger, 'debug', payload, message),
         info: (payload, message) => logChild(logger, 'info', payload, message),
@@ -577,4 +577,24 @@ function errorFrameDraft(instance: ManagedInstance, error: AppError): ModuleFram
       code: error.code,
     },
   };
+}
+
+/**
+ * Stored settings laid over the module's defaults.
+ *
+ * A settings row is written once and then read for the life of the instance, so a key
+ * the module gains later is simply absent from it. Passing the row through unchanged
+ * makes that key `undefined` at runtime, and any feature gated on it silently never
+ * runs — the instance stays healthy and merely stops doing the new thing, which is the
+ * hardest kind of regression to notice. Shallow, matching `SettingsValidator`, so the
+ * settings a runtime sees are the settings validation would have produced.
+ */
+export function settingsWithDefaults(defaults: unknown, stored: unknown): unknown {
+  if (!isPlainObject(defaults)) return stored;
+  if (!isPlainObject(stored)) return defaults;
+  return { ...defaults, ...stored };
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
