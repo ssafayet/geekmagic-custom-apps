@@ -1,0 +1,36 @@
+MIT License
+
+Copyright (c) 2026 geekmagic-custom-apps contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+Device protocol behaviour for GeekMagic displays was derived from the
+MIT-licensed adrienbrault/geekmagic-hacs project
+(https://github.com/adrienbrault/geekmagic-hacs), inspected at commit
+f89798e519b9fbab6062261887e0e057c650dac6.
+
+---
+
+Bundled fonts in packages/renderer/assets/fonts are distributed under the
+SIL Open Font License 1.1:
+  Inter — Copyright (c) 2016 The Inter Project Authors
+  JetBrains Mono — Copyright (c) 2020 The JetBrains Mono Project Authors
+See the LICENSE files alongside the font files for the full text.

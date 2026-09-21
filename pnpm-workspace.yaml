@@ -1,0 +1,11 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+  - 'tools/*'
+
+onlyBuiltDependencies:
+  - '@node-rs/argon2'
+  - '@resvg/resvg-js'
+  - better-sqlite3
+  - esbuild
+  - sharp

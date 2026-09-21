@@ -1,0 +1,28 @@
+# Build state must never leak into the image: a stale tsconfig.tsbuildinfo makes
+# `tsc -b` believe the output is current and emit nothing.
+**/*.tsbuildinfo
+**/dist
+**/node_modules
+release
+
+.git
+.github
+coverage
+test-artifacts
+**/*.log
+
+# Local runtime state and credentials. `COPY . .` in the build stage would
+# otherwise pull a developer's database, master key and environment into a layer.
+data
+.env
+.env.*
+!.env.example
+**/*.db
+**/*.sqlite
+**/*.sqlite3
+**/*.key
+**/*.pem
+
+.vscode
+.idea
+.DS_Store

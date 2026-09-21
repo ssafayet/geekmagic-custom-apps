@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+*.tsbuildinfo
+release/
+*.tgz
+
+# Test and tooling output
+coverage/
+test-artifacts/
+*.log
+
+# Local runtime state. The data directory holds the SQLite database, the device
+# image backups and the master key that decrypts every stored secret, so none of
+# it may ever reach a commit.
+data/
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.key
+*.pem
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Editors and OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Local scratch. Throwaway scripts written against real hardware tend to carry a
+# device address or a home coordinate, so keep them out of history by default.
+_*.ts
+_*.mts
+scratch/
+
+# Claude Code per-user overrides; the shared config, if any, stays tracked.
+.claude/settings.local.json

@@ -1,0 +1,16 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/shared" },
+    { "path": "./packages/module-sdk" },
+    { "path": "./packages/secrets" },
+    { "path": "./packages/database" },
+    { "path": "./packages/renderer" },
+    { "path": "./packages/device-core" },
+    { "path": "./packages/core" },
+    { "path": "./packages/module-claude-usage" },
+    { "path": "./packages/module-adsb-monitor" },
+    { "path": "./tools/claude-statusline-bridge" },
+    { "path": "./apps/server" }
+  ]
+}
