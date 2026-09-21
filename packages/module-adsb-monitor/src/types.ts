@@ -16,11 +16,33 @@ export interface Aircraft {
   sourceType: string | null;
 }
 
+/**
+ * Operator and route for a callsign.
+ *
+ * None of this is broadcast over ADS-B. It comes from a schedule database keyed on the
+ * callsign, so it is absent for general aviation and for any flight the database has
+ * not seen. Every field is independently nullable for that reason.
+ */
+export interface FlightRoute {
+  /** Operator name, e.g. `British Airways`. */
+  airline: string | null;
+  /** Departure airport, IATA where published, else ICAO. */
+  origin: string | null;
+  /** Arrival airport, same code preference. */
+  destination: string | null;
+}
+
 /** An aircraft with the observer-relative geometry the display needs. */
 export interface RankedAircraft extends Aircraft {
   distanceNm: number;
   bearingDegrees: number;
   overhead: boolean;
+  /**
+   * Resolved route, attached after selection so only the aircraft actually shown cost
+   * a lookup. `null` means the lookup ran and found nothing; absent means it has not
+   * run yet.
+   */
+  route?: FlightRoute | null;
 }
 
 export interface NearbyAircraftQuery {

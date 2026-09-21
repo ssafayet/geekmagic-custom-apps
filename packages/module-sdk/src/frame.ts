@@ -62,6 +62,16 @@ export interface AircraftFrameLayout {
   /** Callsign, else registration, else uppercase ICAO hex. */
   identifier: string;
   identifierSource: 'callsign' | 'registration' | 'hex';
+  /**
+   * Operator name for the callsign, when a route lookup resolved one.
+   *
+   * Drawn in the line under the identifier, which is the same line that names the
+   * identifier's source. The two can never collide: the source hint only appears when
+   * the identifier is not a callsign, and an airline can only be resolved from one.
+   */
+  airline?: string;
+  /** Departure and arrival airports, short codes, resolved from the callsign. */
+  route?: { origin: string | null; destination: string | null };
   distanceText: string;
   altitudeText: string;
   bearingDegrees: number | null;

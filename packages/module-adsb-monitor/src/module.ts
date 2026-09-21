@@ -28,6 +28,7 @@ import {
   OPENSKY_DAILY_CREDITS_ANONYMOUS,
   OPENSKY_DAILY_CREDITS_AUTHENTICATED,
 } from './provider-opensky.js';
+import { RouteResolver } from './route-lookup.js';
 import { applySelectionMode, selectAircraft } from './selection.js';
 import {
   ADSB_DEFAULT_SETTINGS,
@@ -56,7 +57,13 @@ export const adsbManifest: ModuleManifest = {
   // One instance: the provider is a setting, not a reason to run the module twice.
   singleton: true,
   refresh: { defaultSeconds: 15, minimumSeconds: 2, maximumSeconds: 300 },
-  permissions: ['network:adsb-fi', 'network:opensky', 'location:configured', 'secrets:read-own'],
+  permissions: [
+    'network:adsb-fi',
+    'network:opensky',
+    'network:adsbdb',
+    'location:configured',
+    'secrets:read-own',
+  ],
   views: [
     {
       id: ADSB_VIEW_AIRCRAFT,
@@ -98,9 +105,11 @@ class AdsbRuntime implements ModuleRuntime<AdsbSnapshot> {
   #provider: AircraftProvider;
   #announcedKeys = new Set<string>();
   #remainingCredits: number | null = null;
+  #routes: RouteResolver;
 
   constructor(private readonly ctx: ModuleContext<AdsbSettings>) {
     this.#provider = new AdsbFiProvider(ctx.http);
+    this.#routes = new RouteResolver(ctx.http, ctx.state, ctx.logger, ctx.now);
   }
 
   /**
@@ -129,6 +138,7 @@ class AdsbRuntime implements ModuleRuntime<AdsbSnapshot> {
   }
 
   async start(): Promise<void> {
+    await this.#routes.load();
     const stored = await this.ctx.state.get<OverheadState[]>(OVERHEAD_STATE_KEY);
     if (Array.isArray(stored)) {
       // Restoring hysteresis prevents a restart from re-announcing an aircraft that
@@ -149,6 +159,7 @@ class AdsbRuntime implements ModuleRuntime<AdsbSnapshot> {
 
   async stop(): Promise<void> {
     await this.persistOverheadState();
+    await this.#routes.persist();
   }
 
   getSnapshot(): AdsbSnapshot | null {
@@ -204,6 +215,7 @@ class AdsbRuntime implements ModuleRuntime<AdsbSnapshot> {
       });
 
       this.#selected = applySelectionMode(selection, settings);
+      await this.enrichRoutes(this.#selected, signal);
       this.#snapshot = {
         capturedAt: nowIso(),
         observedAt: result.observedAt,
@@ -306,6 +318,11 @@ class AdsbRuntime implements ModuleRuntime<AdsbSnapshot> {
               },
             ]),
         {
+          label: 'Airline and route',
+          value: this.ctx.settings.routeLookup ? 'api.adsbdb.com' : 'off',
+          tone: 'neutral',
+        },
+        {
           label: 'Location',
           value: `${this.ctx.settings.locationLabel} (${this.ctx.settings.latitude.toFixed(3)}, ${this.ctx.settings.longitude.toFixed(3)})`,
         },
@@ -386,6 +403,40 @@ class AdsbRuntime implements ModuleRuntime<AdsbSnapshot> {
     } catch (error) {
       const appError = toAppError(error, 'Provider request failed');
       return { ok: false, message: appError.message, code: appError.code };
+    }
+  }
+
+  /**
+   * Attaches airline and route to the aircraft that are about to be shown.
+   *
+   * Only those: a lookup is an HTTP request, and the sky can hold fifty aircraft while
+   * the display shows three. The ranked objects were built by this poll and are shared
+   * with the snapshot, so assigning here enriches what is displayed and what is
+   * persisted at the same time.
+   *
+   * A route is decoration on top of a position report. Nothing in here may fail a poll,
+   * so every error is swallowed and the panel simply renders without it.
+   */
+  private async enrichRoutes(selected: RankedAircraft[], signal: AbortSignal): Promise<void> {
+    if (!this.ctx.settings.routeLookup) return;
+    const callsigns = selected
+      .map((aircraft) => aircraft.callsign)
+      .filter((callsign): callsign is string => callsign !== null);
+    if (callsigns.length === 0) return;
+
+    try {
+      const routes = await this.#routes.resolve(callsigns, signal);
+      for (const aircraft of selected) {
+        if (aircraft.callsign === null) continue;
+        const route = routes.get(aircraft.callsign);
+        if (route !== undefined) aircraft.route = route;
+      }
+      await this.#routes.persist();
+    } catch (error) {
+      this.ctx.logger.debug(
+        { error: error instanceof Error ? error.message : String(error) },
+        'Route enrichment failed; showing aircraft without it',
+      );
     }
   }
 

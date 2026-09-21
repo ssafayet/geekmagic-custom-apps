@@ -17,6 +17,8 @@ export interface AdsbSettings {
   pollIntervalSeconds: number;
   maximumPositionAgeSeconds: number;
   airborneOnly: boolean;
+  /** Look the callsign up for an operator name and a route. Costs a second source. */
+  routeLookup: boolean;
   minimumAltitudeFt: number | null;
   maximumAltitudeFt: number | null;
   selectionMode: 'overhead-only' | 'nearest' | 'overhead-then-nearest' | 'rotate';
@@ -38,6 +40,7 @@ export const ADSB_DEFAULT_SETTINGS: AdsbSettings = {
   pollIntervalSeconds: 15,
   maximumPositionAgeSeconds: 45,
   airborneOnly: true,
+  routeLookup: true,
   minimumAltitudeFt: null,
   maximumAltitudeFt: null,
   selectionMode: 'overhead-then-nearest',
@@ -64,6 +67,7 @@ export const ADSB_SETTINGS_SCHEMA: JsonSchema = {
     pollIntervalSeconds: { type: 'integer', minimum: 2, maximum: 300, default: 15 },
     maximumPositionAgeSeconds: { type: 'integer', minimum: 5, maximum: 300, default: 45 },
     airborneOnly: { type: 'boolean', default: true },
+    routeLookup: { type: 'boolean', default: true },
     minimumAltitudeFt: { type: ['integer', 'null'], minimum: -1500, maximum: 60000, default: null },
     maximumAltitudeFt: { type: ['integer', 'null'], minimum: -1500, maximum: 60000, default: null },
     selectionMode: {
@@ -192,6 +196,13 @@ export const ADSB_UI_SCHEMA: ModuleUiSchema = {
       label: 'Airborne only',
       widget: 'switch',
       help: 'Excludes aircraft reporting as on the ground.',
+    },
+    routeLookup: {
+      section: 'provider',
+      order: 4,
+      label: 'Airline and route',
+      widget: 'switch',
+      help: 'Aircraft broadcast a callsign but not their operator or route. Looking those up sends the callsign — nothing else, and never your location — to api.adsbdb.com. Answers are cached, so a busy sky costs a handful of requests an hour. Off, the panel shows what the aircraft itself transmits.',
     },
     minimumAltitudeFt: {
       section: 'coverage',

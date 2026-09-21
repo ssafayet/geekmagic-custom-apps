@@ -69,6 +69,10 @@ ADS-B coordinates are treated as sensitive:
 - Logs get a value rounded to one decimal place (~11 km).
 - The diagnostics export excludes coordinates and hostnames entirely, and shows you
   the full contents before you download anything.
+- The airline and route lookup sends only the callsign of an aircraft already on
+  screen, to a different host, with no coordinates attached. It is a switch on the
+  settings page. See
+  [BUILT-IN-MODULES.md](BUILT-IN-MODULES.md#airline-and-route).
 
 ## Destructive operations
 

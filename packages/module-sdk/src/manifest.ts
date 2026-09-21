@@ -2,6 +2,7 @@ export const MODULE_PERMISSIONS = [
   'network:anthropic',
   'network:adsb-fi',
   'network:opensky',
+  'network:adsbdb',
   'host:claude-cli-status',
   'host:claude-settings-write',
   'secrets:read-own',

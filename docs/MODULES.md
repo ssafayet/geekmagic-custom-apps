@@ -60,14 +60,16 @@ interruption instead.
 Permissions are enforced, not advisory. A module receives an HTTP client that can
 reach only the hosts its permissions allow, and host services only when declared.
 
-| Permission                   | Grants                                       |
-| ---------------------------- | -------------------------------------------- |
-| `network:anthropic`          | HTTPS to `api.anthropic.com`                 |
-| `network:adsb-fi`            | HTTPS to `opendata.adsb.fi`                  |
-| `host:claude-cli-status`     | `ctx.host.claudeCli`, `ctx.host.bridgeInbox` |
-| `host:claude-settings-write` | `ctx.host.claudeSettings`                    |
-| `secrets:read-own`           | `ctx.secrets` for declared keys              |
-| `location:configured`        | Descriptive; shown in the catalog            |
+| Permission                   | Grants                                           |
+| ---------------------------- | ------------------------------------------------ |
+| `network:anthropic`          | HTTPS to `api.anthropic.com`                     |
+| `network:adsb-fi`            | HTTPS to `opendata.adsb.fi`                      |
+| `network:opensky`            | HTTPS to `opensky-network.org` and its auth host |
+| `network:adsbdb`             | HTTPS to `api.adsbdb.com`                        |
+| `host:claude-cli-status`     | `ctx.host.claudeCli`, `ctx.host.bridgeInbox`     |
+| `host:claude-settings-write` | `ctx.host.claudeSettings`                        |
+| `secrets:read-own`           | `ctx.secrets` for declared keys                  |
+| `location:configured`        | Descriptive; shown in the catalog                |
 
 A new outbound host means a new permission plus an entry in `PERMISSION_HOSTS`
 (`packages/core/src/scoped-services.ts`). That is deliberate: adding a network

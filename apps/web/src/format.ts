@@ -41,6 +41,7 @@ export const PERMISSION_LABELS: Record<string, string> = {
   'network:anthropic': 'Contact api.anthropic.com',
   'network:adsb-fi': 'Contact opendata.adsb.fi',
   'network:opensky': 'Contact opensky-network.org',
+  'network:adsbdb': 'Contact api.adsbdb.com',
   'host:claude-cli-status': 'Check the local Claude Code installation',
   'host:claude-settings-write': 'Modify ~/.claude/settings.json',
   'secrets:read-own': 'Read its own stored credentials',

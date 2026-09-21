@@ -16,6 +16,13 @@ export {
   ADSB_FI_MAX_RADIUS_NM,
 } from './provider-adsbfi.js';
 export {
+  RouteResolver,
+  parseRouteResponse,
+  ADSBDB_ATTRIBUTION,
+  ADSBDB_HOST,
+  ROUTE_CACHE_KEY,
+} from './route-lookup.js';
+export {
   buildAdsbFrames,
   buildAircraftFrame,
   pickIdentifier,

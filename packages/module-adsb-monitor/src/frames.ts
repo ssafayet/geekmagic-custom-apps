@@ -12,6 +12,7 @@ import type {
   SemanticColor,
   SupportingItem,
 } from '@gca/module-sdk';
+import { ADSBDB_ATTRIBUTION } from './route-lookup.js';
 import type { AdsbSettings } from './settings.js';
 import type { AdsbSnapshot, RankedAircraft } from './types.js';
 
@@ -160,6 +161,13 @@ export function buildAircraftFrame(
     supporting.push({ label: 'Squawk', value: aircraft.squawk });
   }
 
+  // Airline and route are the same lookup, so either can be present without the other:
+  // a cargo callsign may resolve an operator and no schedule.
+  const airline = identifier.source === 'callsign' ? (aircraft.route?.airline ?? null) : null;
+  const origin = aircraft.route?.origin ?? null;
+  const destination = aircraft.route?.destination ?? null;
+  const hasRoute = origin !== null || destination !== null;
+
   return {
     id: `adsb-${aircraft.hex}-${index}`,
     viewId: aircraft.overhead ? ADSB_VIEW_OVERHEAD : ADSB_VIEW_AIRCRAFT,
@@ -175,6 +183,8 @@ export function buildAircraftFrame(
       state: aircraft.overhead ? 'overhead' : 'nearby',
       identifier: identifier.value,
       identifierSource: identifier.source,
+      ...(airline ? { airline } : {}),
+      ...(hasRoute ? { route: { origin, destination } } : {}),
       distanceText: formatDistance(aircraft.distanceNm, metric),
       altitudeText: formatAltitude(aircraft, metric),
       bearingDegrees: aircraft.bearingDegrees,
@@ -182,7 +192,11 @@ export function buildAircraftFrame(
       verticalTrend: verticalTrend(aircraft.verticalRateFpm),
       supporting,
       footer: `${ageLabel} ago`,
-      attribution: snapshot.attribution,
+      // Credit the second source only on the frames that actually used it.
+      attribution:
+        airline || hasRoute
+          ? `${snapshot.attribution} · ${ADSBDB_ATTRIBUTION}`
+          : snapshot.attribution,
     },
   };
 }

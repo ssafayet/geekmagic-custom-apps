@@ -21,6 +21,8 @@ const PERMISSION_HOSTS: Partial<Record<ModulePermission, string[]>> = {
   'network:adsb-fi': ['opendata.adsb.fi'],
   // The token endpoint lives on a separate host from the data API.
   'network:opensky': ['opensky-network.org', 'auth.opensky-network.org'],
+  // Callsign -> airline and route. A schedule database, not a position source.
+  'network:adsbdb': ['api.adsbdb.com'],
 };
 
 const DEFAULT_TIMEOUT_MS = 10_000;

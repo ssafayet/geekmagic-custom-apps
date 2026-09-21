@@ -16,7 +16,8 @@ Two modules ship in this release:
 - **Claude Usage** — Claude Code subscription rate limits from your local session, or
   Anthropic organization API tokens and cost.
 - **ADS-B Monitor** — the nearest or currently overhead aircraft around a location you
-  configure, with distance, altitude, speed and bearing.
+  configure, with distance, altitude, speed, bearing, and the operator and route behind
+  the callsign.
 
 ---
 
@@ -104,7 +105,9 @@ makes its next request.
 [adsb.fi](https://github.com/adsbfi/opendata) community feed with no account; switch to
 OpenSky Network in settings if volunteer coverage near you is thin. Your coordinates are
 sent to the provider on every poll — the settings page says so, and they are rounded
-before they reach any log.
+before they reach any log. Airline and route are not broadcast by aircraft; they are
+looked up from the callsign against [adsbdb](https://www.adsbdb.com/), cached, and can
+be switched off.
 
 Both are documented in [docs/BUILT-IN-MODULES.md](docs/BUILT-IN-MODULES.md).
 

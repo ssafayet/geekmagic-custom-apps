@@ -86,6 +86,29 @@ optional, stored in the encrypted vault like any other module secret, and entere
 OpenSky state vectors carry no registration or aircraft type, so those fields stay
 absent rather than being guessed. The settings page warns about this before you switch.
 
+### Airline and route
+
+An aircraft broadcasts a callsign. It does not broadcast who operates it or where it is
+going, so neither adsb.fi nor OpenSky can return those. The **Airline and route** switch
+(on by default) resolves them from the callsign against
+[adsbdb](https://www.adsbdb.com/), which needs no account, and the panel then shows the
+operator under the callsign and `LHR → JFK` under the speed.
+
+It resolves for scheduled airline traffic and not for general aviation, which has no
+published schedule — `N172SP` has no route and never will. A callsign with no answer
+simply shows nothing, the same as a missing altitude.
+
+Lookups are kept cheap on purpose, because the API is free and shared:
+
+- Only the aircraft actually on screen are looked up, never the whole sky.
+- At most three new callsigns per poll.
+- Answers are cached for a day, and a "no route" answer for six hours, so a flight
+  circling overhead costs one request rather than one per poll.
+- The cache survives a restart, and a rate-limit response pauses lookups for five
+  minutes rather than retrying into it.
+
+Turn the switch off and the panel shows only what the aircraft itself transmits.
+
 ### Behaviour
 
 - **Overhead uses hysteresis.** An aircraft becomes overhead at the enter radius and
@@ -96,8 +119,9 @@ absent rather than being guessed. The settings page warns about this before you 
   "the provider worked and there is nothing up there" from "the provider failed".
 - **Overhead traffic can interrupt the playlist**, subject to a per-device cooldown.
   See [ARCHITECTURE.md](ARCHITECTURE.md#attention-interruption).
-- No airline, route, origin or destination is invented: ADS-B does not reliably carry
-  it.
+- **Nothing is invented.** Airline and route are not in the broadcast, so they are
+  either resolved from a named second source or left off the panel. Neither is ever
+  guessed from the callsign prefix.
 
 ### Privacy
 
@@ -105,3 +129,9 @@ Your coordinates are sent to the provider on every poll. The settings page says 
 the point of entry, the values are stored locally, and they are rounded before they
 reach any log or diagnostics export. See
 [SECURITY.md](SECURITY.md#location-privacy).
+
+With **Airline and route** on, the callsign of each aircraft being displayed is also
+sent to `api.adsbdb.com`. That is the whole request: no coordinates, no device identity,
+nothing that ties the callsign to you beyond the network connection itself. A callsign
+is public information already broadcast in the clear by the aircraft. Turn the switch
+off to keep every outbound request going to the ADS-B provider alone.
