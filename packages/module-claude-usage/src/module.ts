@@ -22,6 +22,7 @@ import {
   type ClaudeUsageSettings,
 } from './settings.js';
 import { AnthropicUsageClient } from './usage-api.js';
+import { isLocalRateLimitSource, isPendingSnapshot } from './types.js';
 import type { ClaudeRateLimitSnapshot, ClaudeUsageSnapshot } from './types.js';
 
 /** Organization polling must stay at or below once per minute per Anthropic guidance. */
@@ -113,7 +114,7 @@ class ClaudeUsageRuntime implements ModuleRuntime<ClaudeUsageSnapshot> {
   hydrate(snapshot: unknown): void {
     if (isClaudeSnapshot(snapshot)) {
       this.#snapshot = snapshot;
-      this.#activeSource = snapshot.source === 'claude-code-statusline' ? 'local' : 'api';
+      this.#activeSource = isLocalRateLimitSource(snapshot.source) ? 'local' : 'api';
     }
   }
 
@@ -123,7 +124,7 @@ class ClaudeUsageRuntime implements ModuleRuntime<ClaudeUsageSnapshot> {
 
     const wantsLocal = settings.source === 'auto' || settings.source === 'local-claude-code';
     if (wantsLocal) {
-      const local = await this.readLocalSnapshot();
+      const local = await this.readLocalSnapshot(signal);
       if (local) {
         this.transitionSource('local');
         this.#snapshot = local;
@@ -148,18 +149,39 @@ class ClaudeUsageRuntime implements ModuleRuntime<ClaudeUsageSnapshot> {
     // Nothing usable. Keep any previous snapshot so the display can mark it stale
     // rather than losing the last known state entirely.
     if (this.#snapshot) return this.#snapshot;
+
+    if (wantsLocal) {
+      // Having no reading yet is a state, not a failure. The bridge inbox lives in
+      // memory, so it is empty after every restart until Claude Code next renders a
+      // status line — throwing here drove the instance into the crash backoff on
+      // each poll and delayed the pickup once data did arrive. `getHealth` still
+      // reports precisely what is missing, through `resolveSetupState`.
+      return {
+        source: 'claude-code-statusline',
+        capturedAt: nowIso(),
+        claudeCodeVersion: this.#cli?.version ?? null,
+        modelDisplayName: null,
+        fiveHour: null,
+        sevenDay: null,
+        spendLimit: null,
+        sessionCostUsd: null,
+        pending: true,
+      };
+    }
+
     throw new AppError(
-      wantsLocal ? 'CLAUDE_BRIDGE_NOT_CONNECTED' : 'ANTHROPIC_USAGE_UNAVAILABLE',
-      wantsLocal
-        ? 'No Claude Code usage has arrived yet.'
-        : 'No organization usage credential is configured.',
+      'ANTHROPIC_USAGE_UNAVAILABLE',
+      'No organization usage credential is configured.',
     );
   }
 
   async getFrames(ctx: FrameContext): Promise<ModuleFrameDraft[]> {
     const setupState = await this.resolveSetupState();
+    // A pending snapshot carries no numbers, so it must not reach the frame builder
+    // as if it did.
+    const snapshot = isPendingSnapshot(this.#snapshot) ? null : this.#snapshot;
     return buildClaudeFrames({
-      snapshot: setupState ? null : this.#snapshot,
+      snapshot: setupState ? null : snapshot,
       settings: this.ctx.settings,
       ctx,
       stale: this.isStale(ctx.now),
@@ -180,6 +202,9 @@ class ClaudeUsageRuntime implements ModuleRuntime<ClaudeUsageSnapshot> {
       };
     }
     if (!this.#snapshot) return { status: 'unknown', message: 'No usage data yet.' };
+    if (isPendingSnapshot(this.#snapshot)) {
+      return { status: 'unknown', message: 'No usage data yet.' };
+    }
     if (this.isStale(this.ctx.now())) {
       return {
         status: 'degraded',
@@ -191,7 +216,9 @@ class ClaudeUsageRuntime implements ModuleRuntime<ClaudeUsageSnapshot> {
       message:
         this.#snapshot.source === 'claude-code-statusline'
           ? 'Receiving Claude Code status-line updates.'
-          : 'Organization usage reporting is available.',
+          : this.#snapshot.source === 'claude-code-cli'
+            ? 'Reading usage from the local Claude Code CLI.'
+            : 'Organization usage reporting is available.',
     };
   }
 
@@ -385,11 +412,14 @@ class ClaudeUsageRuntime implements ModuleRuntime<ClaudeUsageSnapshot> {
     };
   }
 
-  private async readLocalSnapshot(): Promise<ClaudeRateLimitSnapshot | null> {
+  private async readLocalSnapshot(signal?: AbortSignal): Promise<ClaudeRateLimitSnapshot | null> {
     const payload = await this.ctx.host.bridgeInbox?.latest();
-    if (!payload) return null;
-    // A payload with no windows at all is not usable rate-limit data.
-    if (!payload.fiveHour && !payload.sevenDay && !payload.spendLimit) return null;
+    // The inbox is in-memory, so it is empty after every restart until Claude Code
+    // next renders a status line. Asking the CLI directly covers that gap, and is
+    // the only local source at all when the bridge was never installed.
+    if (!payload || (!payload.fiveHour && !payload.sevenDay && !payload.spendLimit)) {
+      return this.readCliSnapshot(signal);
+    }
 
     return {
       source: 'claude-code-statusline',
@@ -400,6 +430,29 @@ class ClaudeUsageRuntime implements ModuleRuntime<ClaudeUsageSnapshot> {
       sevenDay: payload.sevenDay,
       spendLimit: payload.spendLimit,
       sessionCostUsd: payload.sessionCostUsd,
+    };
+  }
+
+  /**
+   * Reads usage from the local CLI as a fallback for the bridge.
+   *
+   * Costs no tokens — `/usage` is answered locally by Claude Code — so this is safe
+   * to reach for on every refresh that the bridge could not satisfy.
+   */
+  private async readCliSnapshot(signal?: AbortSignal): Promise<ClaudeRateLimitSnapshot | null> {
+    const reading = await this.ctx.host.claudeCli?.readUsage?.(signal).catch(() => null);
+    if (!reading) return null;
+    if (!reading.fiveHour && !reading.sevenDay) return null;
+
+    return {
+      source: 'claude-code-cli',
+      capturedAt: reading.fetchedAt,
+      claudeCodeVersion: this.#cli?.version ?? null,
+      modelDisplayName: null,
+      fiveHour: reading.fiveHour,
+      sevenDay: reading.sevenDay,
+      spendLimit: null,
+      sessionCostUsd: null,
     };
   }
 
@@ -442,7 +495,9 @@ class ClaudeUsageRuntime implements ModuleRuntime<ClaudeUsageSnapshot> {
   }
 
   private async resolveSetupState(): Promise<ClaudeFrameSetupState | null> {
-    if (this.#snapshot) return null;
+    // A pending placeholder is not a reading, so it must not silence the guidance
+    // that says what is still missing.
+    if (this.#snapshot && !isPendingSnapshot(this.#snapshot)) return null;
     const settings = this.ctx.settings;
 
     if (this.#lastError) {
@@ -492,13 +547,26 @@ class ClaudeUsageRuntime implements ModuleRuntime<ClaudeUsageSnapshot> {
         waiting: false,
       };
     }
+    if (hasCredential) {
+      return {
+        headline: 'Setup required',
+        detail: 'Waiting for the first organization usage response',
+        code: 'CLAUDE_BRIDGE_NOT_CONNECTED',
+        waiting: true,
+      };
+    }
+
+    // No local Claude Code at all. In a container that is expected rather than
+    // wrong — the bridge runs on the host, where this process cannot see it — so
+    // do not claim the bridge is missing when it may be installed and merely
+    // rejected. `gca-claude-bridge doctor` is the thing that can actually tell.
     return {
-      headline: 'Setup required',
-      detail: hasCredential
-        ? 'Waiting for the first organization usage response'
-        : 'Install the status-line bridge or add an organization usage credential',
+      headline: 'No usage received',
+      detail: bridge?.installed
+        ? 'Install the status-line bridge or add a usage credential'
+        : 'Run: gca-claude-bridge doctor',
       code: 'CLAUDE_BRIDGE_NOT_CONNECTED',
-      waiting: hasCredential,
+      waiting: false,
     };
   }
 
@@ -593,5 +661,5 @@ export const claudeUsageModule: AppModule<ClaudeUsageSettings, ClaudeUsageSnapsh
 function isClaudeSnapshot(value: unknown): value is ClaudeUsageSnapshot {
   if (!value || typeof value !== 'object') return false;
   const source = (value as { source?: unknown }).source;
-  return source === 'claude-code-statusline' || source === 'anthropic-usage-api';
+  return isLocalRateLimitSource(source) || source === 'anthropic-usage-api';
 }

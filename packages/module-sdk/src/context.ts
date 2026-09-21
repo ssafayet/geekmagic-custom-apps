@@ -108,8 +108,27 @@ export interface ClaudeCliDetection {
   detail: string;
 }
 
+/**
+ * A rate-limit reading taken from the local CLI rather than the bridge.
+ *
+ * Percentages, not dollars: this mirrors what `/usage` reports for a subscription.
+ */
+export interface ClaudeCliUsageReading {
+  fetchedAt: string;
+  fiveHour: { usedPercentage: number; resetsAt: string } | null;
+  sevenDay: { usedPercentage: number; resetsAt: string } | null;
+}
+
 export interface ClaudeCliService {
   detect(signal?: AbortSignal): Promise<ClaudeCliDetection>;
+  /**
+   * Reads subscription usage straight from the local CLI.
+   *
+   * Optional because a deployment without a local Claude Code — a container, most
+   * obviously — cannot offer it. Returns null rather than throwing when the reading
+   * is unavailable: a missing source is a display state, not a fault.
+   */
+  readUsage?(signal?: AbortSignal): Promise<ClaudeCliUsageReading | null>;
 }
 
 export interface ClaudeBridgeInstallState {

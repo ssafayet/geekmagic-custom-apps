@@ -10,6 +10,7 @@ import {
   type SupportingItem,
 } from '@gca/module-sdk';
 import type { ClaudeUsageSettings } from './settings.js';
+import { isRateLimitSnapshot } from './types.js';
 import type { ClaudeRateLimitSnapshot, ClaudeUsageSnapshot } from './types.js';
 import type { UsageWindow } from './statusline.js';
 
@@ -84,7 +85,7 @@ export function buildClaudeFrames(input: ClaudeFrameInput): ModuleFrameDraft[] {
     ];
   }
 
-  return snapshot.source === 'claude-code-statusline'
+  return isRateLimitSnapshot(snapshot)
     ? [buildRateLimitFrame(snapshot, settings, ctx, stale)]
     : [buildApiCostFrame(snapshot, settings, ctx, stale)];
 }
