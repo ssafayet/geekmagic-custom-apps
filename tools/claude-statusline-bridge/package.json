@@ -1,0 +1,25 @@
+{
+  "name": "@gca/claude-statusline-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "gca-claude-bridge": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@gca/core": "workspace:*",
+    "@gca/shared": "workspace:*"
+  }
+}
