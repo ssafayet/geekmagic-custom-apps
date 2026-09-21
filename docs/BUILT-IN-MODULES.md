@@ -1,0 +1,104 @@
+# Built-in modules
+
+Two modules ship in this release. Both are ordinary `AppModule` implementations with
+no privileged access to the server — see [MODULES.md](MODULES.md) for the contract they
+are written against.
+
+---
+
+## Claude Usage
+
+Subscription usage and API usage are **different products**, and this module keeps them
+clearly separated rather than blending them into one number.
+
+| Source                     | What you need                                 | What you see                                      |
+| -------------------------- | --------------------------------------------- | ------------------------------------------------- |
+| Local Claude Code          | An existing login plus the status-line bridge | 5-hour and 7-day used percentage, and reset times |
+| Anthropic organization API | A credential authorized for usage reporting   | Tokens, requests and cost over a window you pick  |
+
+The **Source** setting is `Auto`, `Local Claude Code`, or `Organization usage API`.
+`Auto` prefers the local bridge and can optionally fall back to the API credential when
+Claude Code has been quiet.
+
+### Why your API key may not work
+
+An ordinary API key that can call Claude is usually **not** authorized for organization
+usage reporting; those are separate scopes. The UI says so precisely — including which
+check failed — rather than reporting a vague error. Use the **Test credential** action
+on the settings page to confirm before relying on it.
+
+### The status-line bridge
+
+Subscription rate limits reach the server through a small host-side bridge, because
+Claude Code runs as you and a service does not. Install it with:
+
+```bash
+pnpm bridge:install     # or, from a built install: gca-claude-bridge install
+```
+
+Its guarantees in brief — your existing status line keeps working and is restored
+byte-for-byte on uninstall, no credentials are ever read, no prompt content is
+collected, and it never breaks Claude Code even when the server is down. The full
+design, the exact payload fields, and recovery steps are in
+[CLAUDE-BRIDGE.md](CLAUDE-BRIDGE.md).
+
+Usage appears after Claude Code makes its next request. Until then the display honestly
+says _waiting_, never zero.
+
+---
+
+## ADS-B Monitor
+
+Shows the nearest or currently overhead aircraft around a location you configure, with
+distance, altitude, speed and bearing.
+
+### Providers
+
+The provider sits behind an interface, so a local `readsb` receiver or a licensed feed
+can be added later without touching selection or rendering.
+
+| Provider                                                         | Account  | Constraint                                                                     | Carries registration and type |
+| ---------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------ | ----------------------------- |
+| [adsb.fi](https://github.com/adsbfi/opendata) (default)          | None     | Roughly one request per second; coverage depends on volunteer feeders near you | Yes                           |
+| [OpenSky Network](https://openskynetwork.github.io/opensky-api/) | Optional | A **daily** request budget, not a per-second rate limit                        | No                            |
+
+Pick adsb.fi first. It is free, needs no account, and returns richer data. Switch to
+OpenSky when volunteer coverage near you is thin — in parts of South Asia, for example,
+adsb.fi returns nothing where OpenSky returns traffic.
+
+**OpenSky's budget is the binding constraint.** It bills per request and resets daily,
+so the poll interval — not a rate limit — decides whether a deployment runs out by
+lunchtime:
+
+| Credentials          | Daily requests | Slowest safe poll |
+| -------------------- | -------------- | ----------------- |
+| Anonymous            | ~400           | ~238 s            |
+| Client ID and secret | ~4,000         | ~24 s             |
+
+Settings validation refuses a poll interval that would exhaust the budget, and says why,
+instead of letting the module fail silently halfway through the day. Credentials are
+optional, stored in the encrypted vault like any other module secret, and entered as
+`openSkyClientId` / `openSkyClientSecret` on the settings page.
+
+OpenSky state vectors carry no registration or aircraft type, so those fields stay
+absent rather than being guessed. The settings page warns about this before you switch.
+
+### Behaviour
+
+- **Overhead uses hysteresis.** An aircraft becomes overhead at the enter radius and
+  stays overhead until it passes the larger exit radius, so one drifting along the
+  boundary cannot flap the display back and forth.
+- **Absent data stays absent.** A missing altitude renders as `—`, never `0 ft`.
+- **An empty sky is healthy**, not an error. The **Test location** action distinguishes
+  "the provider worked and there is nothing up there" from "the provider failed".
+- **Overhead traffic can interrupt the playlist**, subject to a per-device cooldown.
+  See [ARCHITECTURE.md](ARCHITECTURE.md#attention-interruption).
+- No airline, route, origin or destination is invented: ADS-B does not reliably carry
+  it.
+
+### Privacy
+
+Your coordinates are sent to the provider on every poll. The settings page says so at
+the point of entry, the values are stored locally, and they are rounded before they
+reach any log or diagnostics export. See
+[SECURITY.md](SECURITY.md#location-privacy).
