@@ -94,22 +94,26 @@ export function ModulesPage() {
                 )}
 
                 <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <Button
-                    variant="primary"
-                    disabled={atLimit}
-                    busy={create.isPending}
-                    onClick={() => void addInstance(definition)}
-                  >
-                    Add
-                  </Button>
+                  {/* A module already at its instance limit offers configuration, not a
+                      disabled Add button next to an explanation of why it is disabled. */}
+                  {!atLimit && (
+                    <Button
+                      variant="primary"
+                      busy={create.isPending}
+                      onClick={() => void addInstance(definition)}
+                    >
+                      {existing.length > 0 ? 'Add another' : 'Add'}
+                    </Button>
+                  )}
                   {existing.map((instance) => (
-                    <Button key={instance.id} onClick={() => navigate(`/modules/${instance.id}`)}>
-                      Configure {existing.length > 1 ? instance.name : ''}
+                    <Button
+                      key={instance.id}
+                      variant={atLimit ? 'primary' : 'secondary'}
+                      onClick={() => navigate(`/modules/${instance.id}`)}
+                    >
+                      {existing.length > 1 ? `Configure ${instance.name}` : 'Configure'}
                     </Button>
                   ))}
-                  {atLimit && (
-                    <span className="text-xs text-[var(--color-ink-faint)]">Only one allowed</span>
-                  )}
                 </div>
               </li>
             );

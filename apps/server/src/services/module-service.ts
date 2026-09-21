@@ -59,11 +59,9 @@ export class ModuleService {
 
   async create(moduleId: string, input: UpdateInstanceInput = {}): Promise<ModuleInstanceDto> {
     const entry = this.ctx.registry.get(moduleId);
+    const siblings = this.ctx.store.moduleInstances.listByModule(moduleId);
 
-    if (
-      entry.manifest.singleton &&
-      this.ctx.store.moduleInstances.listByModule(moduleId).length > 0
-    ) {
+    if (entry.manifest.singleton && siblings.length > 0) {
       throw new AppError('CONFLICT', `${entry.manifest.displayName} allows only one instance.`);
     }
 
@@ -92,7 +90,7 @@ export class ModuleService {
       this.ctx.store.moduleInstances.insert({
         id: instanceId,
         moduleId,
-        name: input.name?.trim() || entry.manifest.displayName,
+        name: input.name?.trim() || uniqueInstanceName(entry.manifest.displayName, siblings),
         enabled: input.enabled ?? true,
         settingsVersion: entry.manifest.settingsVersion,
         settings: validation.value as Record<string, unknown>,
@@ -309,5 +307,23 @@ export class ModuleService {
     const record = this.ctx.store.moduleInstances.get(instanceId);
     if (!record) throw new AppError('MODULE_NOT_FOUND', 'That module instance does not exist.');
     return record;
+  }
+}
+
+/**
+ * Names a new instance so it stays distinguishable from its siblings.
+ *
+ * Two instances of the same module otherwise share the manifest's display name, which
+ * makes the list of configured modules unreadable.
+ */
+function uniqueInstanceName(
+  displayName: string,
+  siblings: ReadonlyArray<{ name: string }>,
+): string {
+  const taken = new Set(siblings.map((sibling) => sibling.name));
+  if (!taken.has(displayName)) return displayName;
+  for (let suffix = 2; ; suffix += 1) {
+    const candidate = `${displayName} ${suffix}`;
+    if (!taken.has(candidate)) return candidate;
   }
 }

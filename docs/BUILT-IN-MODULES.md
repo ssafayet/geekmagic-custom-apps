@@ -57,6 +57,9 @@ distance, altitude, speed and bearing.
 The provider sits behind an interface, so a local `readsb` receiver or a licensed feed
 can be added later without touching selection or rendering.
 
+The module runs as a single instance. The provider is a setting inside it, not a reason
+to add the module twice.
+
 | Provider                                                         | Account  | Constraint                                                                     | Carries registration and type |
 | ---------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------ | ----------------------------- |
 | [adsb.fi](https://github.com/adsbfi/opendata) (default)          | None     | Roughly one request per second; coverage depends on volunteer feeders near you | Yes                           |

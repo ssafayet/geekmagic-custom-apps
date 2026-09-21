@@ -53,7 +53,8 @@ export const adsbManifest: ModuleManifest = {
     'Shows the nearest or currently overhead aircraft around a configured location, with distance, altitude, speed and bearing.',
   icon: 'aircraft',
   category: 'monitoring',
-  singleton: false,
+  // One instance: the provider is a setting, not a reason to run the module twice.
+  singleton: true,
   refresh: { defaultSeconds: 15, minimumSeconds: 2, maximumSeconds: 300 },
   permissions: ['network:adsb-fi', 'network:opensky', 'location:configured', 'secrets:read-own'],
   views: [
