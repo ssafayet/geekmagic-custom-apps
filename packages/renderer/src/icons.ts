@@ -1,0 +1,86 @@
+import { round } from './svg.js';
+
+/**
+ * Built-in icon set.
+ *
+ * Modules reference icons by id only — they cannot supply path data. That keeps
+ * arbitrary vector content out of the render pipeline while still allowing variety.
+ */
+const ICON_PATHS: Record<string, string> = {
+  // 24x24 source grid.
+  sparkle: 'M12 2 L14.2 8.6 L21 11 L14.2 13.4 L12 20 L9.8 13.4 L3 11 L9.8 8.6 Z',
+  aircraft:
+    'M12 2 C12.9 2 13.6 3 13.6 4.4 L13.6 9 L21.5 13.6 L21.5 15.6 L13.6 13.4 L13.6 18.4 L16.4 20.4 L16.4 22 L12 20.8 L7.6 22 L7.6 20.4 L10.4 18.4 L10.4 13.4 L2.5 15.6 L2.5 13.6 L10.4 9 L10.4 4.4 C10.4 3 11.1 2 12 2 Z',
+  // Three subpaths: a 270-degree outer sweep, a matching inner ring, and the sweep arm.
+  radar: 'M3 12 A9 9 0 1 1 12 21 M7.5 12 A4.5 4.5 0 1 1 12 16.5 M12 12 L19.4 4.6',
+  clock: 'M12 3 A9 9 0 1 0 12.01 3 Z M12 7 L12 12.4 L16 14.6',
+  warning: 'M12 3 L22 20.5 L2 20.5 Z M12 9 L12 15 M12 17.4 L12 18.6',
+  error: 'M12 3 A9 9 0 1 0 12.01 3 Z M8.5 8.5 L15.5 15.5 M15.5 8.5 L8.5 15.5',
+  offline:
+    'M3 4 L21 20 M12 18.5 L12 18.6 M5.5 10.5 A9 9 0 0 1 9 8.4 M18.5 10.5 A9 9 0 0 0 14.6 8.2 M8.4 14 A5 5 0 0 1 10.4 12.7',
+  check: 'M4 12.5 L9.5 18 L20 6.5',
+  cost: 'M12 3 L12 21 M16.5 7.2 C16.5 5.4 14.5 4.4 12 4.4 C9.5 4.4 7.6 5.5 7.6 7.6 C7.6 12.4 16.8 10.6 16.8 15.6 C16.8 18 14.6 19.4 12 19.4 C9.4 19.4 7.2 18.2 7.2 16.2',
+  gauge: 'M3.5 17.5 A9.5 9.5 0 1 1 20.5 17.5 M12 17 L16.5 9.5',
+  settings:
+    'M12 8.4 A3.6 3.6 0 1 0 12.01 8.4 Z M12 2.5 L13.4 5.2 L16.4 4.6 L16.6 7.6 L19.4 8.8 L17.8 11.3 L19.4 13.8 L16.6 15 L16.4 18 L13.4 17.4 L12 20.1 L10.6 17.4 L7.6 18 L7.4 15 L4.6 13.8 L6.2 11.3 L4.6 8.8 L7.4 7.6 L7.6 4.6 L10.6 5.2 Z',
+  compass: 'M12 3 A9 9 0 1 0 12.01 3 Z M15.5 8.5 L13.2 13.2 L8.5 15.5 L10.8 10.8 Z',
+};
+
+export const ICON_IDS = Object.keys(ICON_PATHS);
+
+export function hasIcon(id: string): boolean {
+  return Object.hasOwn(ICON_PATHS, id);
+}
+
+export interface IconOptions {
+  id: string;
+  x: number;
+  y: number;
+  size: number;
+  color: string;
+  /** Stroke-only icons read better at small sizes than filled ones. */
+  mode?: 'stroke' | 'fill';
+  strokeWidth?: number;
+  opacity?: number;
+}
+
+/** Renders a built-in icon at `size` px, anchored at its top-left corner. */
+export function icon(options: IconOptions): string {
+  const { id, x, y, size, color, mode = 'stroke', strokeWidth = 1.8, opacity } = options;
+  const d = ICON_PATHS[id];
+  if (!d) return '';
+  const scale = size / 24;
+  const attrs = [
+    `d="${d}"`,
+    mode === 'fill' ? `fill="${color}"` : 'fill="none"',
+    mode === 'stroke' ? `stroke="${color}"` : '',
+    mode === 'stroke' ? `stroke-width="${round(strokeWidth)}"` : '',
+    'stroke-linecap="round"',
+    'stroke-linejoin="round"',
+    opacity === undefined ? '' : `opacity="${round(opacity, 3)}"`,
+  ].filter(Boolean);
+  return `<g transform="translate(${round(x)} ${round(y)}) scale(${round(scale, 4)})"><path ${attrs.join(' ')} /></g>`;
+}
+
+/**
+ * Direction arrow for ADS-B bearings: a filled triangle rotated to the bearing, so
+ * direction is legible at a glance even before the compass abbreviation is read.
+ */
+export function bearingArrow(options: {
+  cx: number;
+  cy: number;
+  size: number;
+  bearingDegrees: number;
+  color: string;
+}): string {
+  const { cx, cy, size, bearingDegrees, color } = options;
+  const half = size / 2;
+  const d = [
+    `M 0 ${round(-half)}`,
+    `L ${round(half * 0.72)} ${round(half * 0.82)}`,
+    `L 0 ${round(half * 0.4)}`,
+    `L ${round(-half * 0.72)} ${round(half * 0.82)}`,
+    'Z',
+  ].join(' ');
+  return `<g transform="translate(${round(cx)} ${round(cy)}) rotate(${round(bearingDegrees, 1)})"><path d="${d}" fill="${color}" /></g>`;
+}
