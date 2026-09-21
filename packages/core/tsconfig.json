@@ -8,6 +8,8 @@
     { "path": "../database" },
     { "path": "../device-core" },
     { "path": "../renderer" },
-    { "path": "../secrets" }
+    { "path": "../secrets" },
+    { "path": "../module-claude-usage" },
+    { "path": "../module-adsb-monitor" }
   ]
 }

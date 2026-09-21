@@ -148,6 +148,12 @@ importers:
       '@gca/device-core':
         specifier: workspace:*
         version: link:../device-core
+      '@gca/module-adsb-monitor':
+        specifier: workspace:*
+        version: link:../module-adsb-monitor
+      '@gca/module-claude-usage':
+        specifier: workspace:*
+        version: link:../module-claude-usage
       '@gca/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
