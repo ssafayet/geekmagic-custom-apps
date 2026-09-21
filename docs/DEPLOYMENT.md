@@ -2,30 +2,37 @@
 
 ## Choosing a mode
 
-| Mode                   | Claude Code detection | Notes                                                             |
-| ---------------------- | --------------------- | ----------------------------------------------------------------- |
-| Native, as your user   | Automatic             | Preferred. The service can see your Claude installation.          |
-| Native, system service | No                    | Fine for device + ADS-B only; install the bridge separately.      |
-| Docker                 | No                    | Install the bridge on the host; needs routing to the display LAN. |
+| Mode                   | Claude Code detection | Notes                                                                                     |
+| ---------------------- | --------------------- | ----------------------------------------------------------------------------------------- |
+| Native, as your user   | Automatic             | Preferred. The service can see your Claude installation.                                  |
+| Native, system service | No                    | Fine for device + ADS-B only; install the bridge separately.                              |
+| Docker                 | No                    | Install the bridge on the host with `GCA_BRIDGE_TOKEN`; needs routing to the display LAN. |
 
 Claude Code runs as _you_. A service running as `root` or a dedicated system user
 cannot see your installation — that is not a bug to work around, it is why the bridge
 exists.
+
+Running natively as your own user buys one more thing: the module can read usage
+straight from `claude -p "/usage"` when the bridge inbox is empty, so a restart shows
+numbers immediately instead of waiting for the next status-line render.
 
 ## Environment variables
 
 Every value has a working default; an install that only wants loopback access needs
 none of them. Module settings live in the database and the UI, never here.
 
-| Variable              | Default          | Purpose                                                                                                                                     |
-| --------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GCA_HOST`            | `127.0.0.1`      | Bind address. Anything other than loopback counts as exposed and requires an administrator password.                                        |
-| `GCA_PORT`            | `3210`           | HTTP port                                                                                                                                   |
-| `GCA_DATA_DIR`        | platform default | Database, master key, bridge token and device backups                                                                                       |
-| `GCA_LOG_LEVEL`       | `info`           | Pino level                                                                                                                                  |
-| `GCA_MASTER_KEY_FILE` | —                | Use a mounted secret instead of the generated key file. Required if secrets must survive a container rebuild that discards the data volume. |
-| `GCA_PUBLIC_BASE_URL` | —                | External URL when behind a reverse proxy                                                                                                    |
-| `GCA_TRUST_PROXY`     | `false`          | Honour `X-Forwarded-*`                                                                                                                      |
+| Variable                           | Default            | Purpose                                                                                                                                     |
+| ---------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GCA_HOST`                         | `127.0.0.1`        | Bind address. Anything other than loopback counts as exposed and requires an administrator password.                                        |
+| `GCA_PORT`                         | `3210`             | HTTP port                                                                                                                                   |
+| `GCA_DATA_DIR`                     | platform default   | Database, master key, bridge token and device backups                                                                                       |
+| `GCA_LOG_LEVEL`                    | `info`             | Pino level                                                                                                                                  |
+| `GCA_MASTER_KEY_FILE`              | —                  | Use a mounted secret instead of the generated key file. Required if secrets must survive a container rebuild that discards the data volume. |
+| `GCA_BRIDGE_TOKEN`                 | —                  | Pre-shared status-line bridge token, for when the server and the bridge cannot share a data directory (Docker). Minimum 16 characters.      |
+| `GCA_BRIDGE_ALLOW_PRIVATE_SOURCES` | `false`            | Accept bridge posts from any private address, not only loopback. Needed when the server is containerised and the port is published.         |
+| `GCA_AUTH_REQUIRED`                | follows `GCA_HOST` | Force the browser API's login on or off. Set `false` for a container that binds `0.0.0.0` but publishes its port on the host's loopback.    |
+| `GCA_PUBLIC_BASE_URL`              | —                  | External URL when behind a reverse proxy                                                                                                    |
+| `GCA_TRUST_PROXY`                  | `false`            | Honour `X-Forwarded-*`                                                                                                                      |
 
 [`.env.example`](../.env.example) is a copy-ready version of this table.
 
@@ -112,6 +119,25 @@ loginctl enable-linger "$USER"   # survive logout
 
 For a device-only deployment a system-wide unit is fine; use `DynamicUser=yes` with a
 `StateDirectory`, and accept that Claude detection will not work.
+
+## Authentication and the bind address
+
+Binding beyond loopback turns the login on. A fresh install has no password, and there
+is **no login or set-password screen in the web UI**, so an exposed server with no
+password answers every API call with 401 and cannot be recovered from the browser.
+
+Inside a container the bind address is misleading: a published port cannot reach the
+container's own loopback, so it must bind `0.0.0.0` even when `-p 127.0.0.1:3210:3210`
+means nothing outside the host can connect. Say so with `GCA_AUTH_REQUIRED=false`.
+
+Set a password from the command line if you do want one:
+
+```bash
+curl -X POST http://127.0.0.1:3210/api/v1/auth/password \
+  -H 'content-type: application/json' -d '{"password":"at-least-12-characters"}'
+```
+
+That route is open only while no password exists; afterwards it needs the current one.
 
 ## Docker
 

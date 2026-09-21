@@ -4,9 +4,30 @@ Claude Code can pipe a JSON status-line payload to a command on every render. Th
 bridge receives that payload, keeps only the approved fields, and forwards them to
 this server on loopback.
 
-This is the only way subscription usage reaches the display. There is deliberately no
-code path that reads Claude Code's credentials or calls the private endpoint behind
-`/usage`.
+There is deliberately no code path that reads Claude Code's credentials or calls the
+private endpoint behind `/usage`.
+
+## The bridge is not the only local source
+
+`claude -p "/usage"` answers locally: it reports `num_turns: 0` and
+`total_cost_usd: 0`, so it is not a model call and costs no tokens. Its side effect is
+what the server uses — the CLI refreshes `cachedUsageUtilization` in `~/.claude.json`,
+which holds the same two windows as structured JSON.
+
+The module reads that as a **fallback**, whenever the bridge inbox is empty:
+
+| Source                        | Costs | Fresh after a server restart   | Works from a container       |
+| ----------------------------- | ----- | ------------------------------ | ---------------------------- |
+| Bridge (status line)          | Free  | No — waits for the next render | Yes, bridge runs on the host |
+| `claude -p "/usage"` fallback | Free  | Yes                            | No — needs the CLI locally   |
+
+The bridge stays the primary source: it needs no process spawn and no extra network
+call. The fallback exists because the inbox is in memory, so a restart empties it, and
+because someone may never install the bridge at all.
+
+`cachedUsageUtilization` is internal to Claude Code — its sibling keys are codenames —
+so it is not a stable contract. Every parse failure yields "no reading", never an
+error, and the spawn is limited to one per five minutes.
 
 ## Install
 
@@ -16,10 +37,101 @@ pnpm bridge:install
 gca-claude-bridge install
 ```
 
-Flags: `--data-dir`, `--settings`, `--port`, `--endpoint`.
+Flags: `--data-dir`, `--settings`, `--port`, `--endpoint`, `--token`.
 
 Available without the web UI on purpose: in Docker the server runs in a container
 while Claude Code runs on the host, so the bridge has to be installable there.
+
+Install is idempotent: running it again rewrites the same status line, reuses the
+existing token, and will not chain the bridge to its own previous invocation, so it
+is safe to put in a provisioning script.
+
+It finishes by asking the server whether it accepts the token, because installing
+successfully says nothing about whether usage will actually arrive.
+
+### When nothing arrives
+
+```bash
+gca-claude-bridge doctor
+```
+
+`run` cannot report anything — it swallows every failure so a broken bridge is never
+the reason a Claude Code session shows an error. `doctor` is where the diagnosis
+lives. It names the actual fault:
+
+| Output                          | Cause                                                                                        |
+| ------------------------------- | -------------------------------------------------------------------------------------------- |
+| `the server rejects this token` | The bridge and the server hold different secrets. Re-run install with `--token`.             |
+| `refuses this source address`   | A published container port arrives through NAT. Set `GCA_BRIDGE_ALLOW_PRIVATE_SOURCES=true`. |
+| `Cannot reach`                  | Server down, or the wrong port in `--endpoint`.                                              |
+| `No payload has arrived yet`    | Everything is wired up; Claude Code has not rendered since.                                  |
+
+### Automating it — same machine as the server
+
+The server and the bridge both derive the token from the data directory, so they
+agree without being told anything:
+
+```bash
+pnpm bridge:install        # from a checkout
+gca-claude-bridge install  # from a built install
+gca-claude-bridge status   # exit 0 when installed; for a health check
+```
+
+To have it survive a fresh machine, run it after the server unit starts — a
+`systemd` drop-in, a launchd `RunAtLoad` agent, or one line in your dotfiles setup.
+The web UI's **Install status-line bridge** action does the same thing in one click.
+
+### Automating it — server in Docker
+
+Two things break by default, and both have to be handled.
+
+**The token.** The container cannot reach `~/.claude`, and the host bridge cannot read
+the token file inside the volume, so the two sides generate different secrets and
+every post is rejected. Decide the token up front and give it to both.
+
+**The source address.** The endpoint is loopback-only. With `network_mode: host` that
+is satisfied naturally. With a published port it is not: Docker's NAT rewrites the
+source, so a post from the host arrives from the bridge gateway —
+`Rejected non-local bridge request`, HTTP 401. `GCA_BRIDGE_ALLOW_PRIVATE_SOURCES=true`
+widens the check to any private address.
+
+```bash
+# 1. Generate once and keep it (a password manager, or .env with 0600).
+export GCA_BRIDGE_TOKEN=$(openssl rand -hex 32)
+
+# 2. The server takes it from the environment instead of its token file.
+#    --env-file is required: compose reads .env relative to the compose file, so
+#    without it a repo-root .env is silently ignored and the token arrives empty.
+docker compose --env-file .env -f docker/compose.yaml up -d
+
+# 3. The host bridge is told the same token and the published endpoint.
+pnpm bridge:install -- \
+  --endpoint http://127.0.0.1:3210/internal/claude/statusline \
+  --token "$GCA_BRIDGE_TOKEN"
+```
+
+`--token` also reads `GCA_BRIDGE_TOKEN` from the environment, so step 3 can drop the
+flag when the variable is exported. The token must be at least 16 characters; a
+shorter one fails at startup rather than being accepted weakly.
+
+| Networking                     | Needs `GCA_BRIDGE_ALLOW_PRIVATE_SOURCES` | Verified |
+| ------------------------------ | ---------------------------------------- | -------- |
+| `network_mode: host` (default) | No                                       | Yes      |
+| Published port                 | Yes                                      | Yes      |
+
+Publish the port on loopback only — `127.0.0.1:3210:3210`, as the compose file does.
+The allowance widens which source addresses may connect, so the host-side binding is
+what keeps the LAN out. The bearer token remains the actual authentication either way:
+a wrong token is still rejected with the allowance set.
+
+The bridge binary itself has to exist on the host. `@gca/claude-statusline-bridge` is
+not published to npm, so use `pnpm bridge:install` from the checkout you already have
+(the one holding `docker/compose.yaml`). It runs from source through `tsx` and needs
+`pnpm install`, not a full build.
+
+Note that the CLI fallback does **not** work from a container: `claude` is not
+installed there and `~/.claude.json` is not mounted. In Docker the bridge is the
+only local source, which is the case the pending-snapshot behaviour was written for.
 
 Other commands:
 
@@ -122,12 +234,18 @@ triggers a refresh, rather than waiting for the next scheduled tick.
 With `source: auto`:
 
 1. A fresh bridge payload containing any window → local rate-limit mode.
-2. Claude authenticated but no payload yet → _Waiting for Claude_. It does **not**
+2. No payload, but the local CLI answers → local rate-limit mode from the CLI.
+3. Claude authenticated but neither source answers → _Waiting for Claude_. It does **not**
    silently fall through to an API credential, because that would swap one
    measurement for a different one without saying so. Opt in with
    "Fall back to the API credential when Claude Code is quiet".
-3. No local Claude and a valid usage credential → organization API mode.
-4. Otherwise a setup-required frame.
+4. No local Claude and a valid usage credential → organization API mode.
+5. Otherwise a setup-required frame.
+
+Having no reading yet is reported as a **pending** snapshot, not a thrown error. A
+throw counted against the module's crash backoff on every poll, which after a restart
+was guaranteed — the display took progressively longer to pick usage up once it did
+arrive.
 
 A source change is logged and invalidates the current frame.
 

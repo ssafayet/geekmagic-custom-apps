@@ -75,12 +75,17 @@ everything locally.
 ### Docker
 
 ```bash
-docker compose -f docker/compose.yaml up -d
+docker compose --env-file .env -f docker/compose.yaml up -d
 ```
 
+`--env-file .env` is not optional. Compose resolves `.env` relative to the compose
+file, so `docker/.env` — without the flag, everything you set in the repo root `.env`
+is silently dropped. Check with
+`docker compose --env-file .env -f docker/compose.yaml config`.
+
 The container needs routing to your display's LAN, and Claude Code detection does not
-work from inside it — install the bridge on the host instead.
-See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+work from inside it — install the bridge on the host instead, with the same
+`GCA_BRIDGE_TOKEN` the container got. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## Turning on the modules
 
