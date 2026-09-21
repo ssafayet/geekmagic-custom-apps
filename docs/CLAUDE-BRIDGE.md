@@ -20,10 +20,18 @@ The module reads that as a **fallback**, whenever the bridge inbox is empty:
 | ----------------------------- | ----- | ------------------------------ | ---------------------------- |
 | Bridge (status line)          | Free  | No — waits for the next render | Yes, bridge runs on the host |
 | `claude -p "/usage"` fallback | Free  | Yes                            | No — needs the CLI locally   |
+| `gca-claude-bridge push`      | Free  | Yes                            | Yes — reads the CLI, posts   |
 
 The bridge stays the primary source: it needs no process spawn and no extra network
 call. The fallback exists because the inbox is in memory, so a restart empties it, and
 because someone may never install the bridge at all.
+
+`push` is the two combined, and it exists because the first two rows have a gap between
+them. The status line only fires in clients that render one — a terminal session does,
+the VS Code extension does not — and the fallback cannot run inside a container. Where
+both are true the module has no source at all. `push` reads the same CLI cache the
+fallback reads, on the host where it is readable, and posts it to the same endpoint the
+bridge posts to. See [Pushing usage on a timer](#pushing-usage-on-a-timer).
 
 `cachedUsageUtilization` is internal to Claude Code — its sibling keys are codenames —
 so it is not a stable contract. Every parse failure yields "no reading", never an
@@ -66,6 +74,10 @@ lives. It names the actual fault:
 | `Cannot reach`                  | Server down, or the wrong port in `--endpoint`.                                              |
 | `No payload has arrived yet`    | Everything is wired up; Claude Code has not rendered since.                                  |
 
+If that last row never changes, the client you use is not rendering a status line at
+all — the VS Code extension does not — and no amount of reinstalling will help, because
+nothing about the bridge is broken. Use `push` instead.
+
 ### Automating it — same machine as the server
 
 The server and the bridge both derive the token from the data directory, so they
@@ -80,6 +92,64 @@ gca-claude-bridge status   # exit 0 when installed; for a health check
 To have it survive a fresh machine, run it after the server unit starts — a
 `systemd` drop-in, a launchd `RunAtLoad` agent, or one line in your dotfiles setup.
 The web UI's **Install status-line bridge** action does the same thing in one click.
+
+### Pushing usage on a timer
+
+```bash
+pnpm bridge:push                          # one shot, from a checkout
+gca-claude-bridge push                    # one shot, from a built install
+gca-claude-bridge push --watch            # stay resident, every 60s
+gca-claude-bridge push --watch --interval 120
+```
+
+`push` reads usage with the same code path as the CLI fallback and posts it as a
+status-line payload, so the server keeps one parser and cannot tell the difference. It
+needs the same token as `install` — it reads the same token file, so on a single
+machine there is nothing to configure, and for a container pass `--token-file` or
+`--endpoint` the same way.
+
+One-shot exits non-zero on failure and names the cause, so it suits `cron` or a launchd
+timer. `--watch` keeps going across failures instead, on the assumption the server is
+only restarting.
+
+`--watch` holds the event loop open with a referenced timer between pushes. That is
+load-bearing: an unreferenced one lets Node exit mid-wait, and under a `KeepAlive`
+supervisor the result still pushes — once per respawn — so it looks like it is working
+while actually crash-looping and ignoring `--interval`. If the agent's stderr shows
+`Detected unsettled top-level await`, that is what is happening.
+
+A launchd agent at `~/Library/LaunchAgents/dev.gca.claude-push.plist`:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0"><dict>
+  <key>Label</key><string>dev.gca.claude-push</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/gca-claude-bridge</string>
+    <string>push</string>
+    <string>--watch</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ProcessType</key><string>Background</string>
+  <key>StandardOutPath</key><string>/Users/you/Library/Logs/gca/claude-push.log</string>
+  <key>StandardErrorPath</key><string>/Users/you/Library/Logs/gca/claude-push.err</string>
+</dict></plist>
+```
+
+From a checkout there is no `gca-claude-bridge` on the PATH, so point the agent at the
+built entry point directly — `node <checkout>/tools/claude-statusline-bridge/dist/cli.js
+push --watch`. Use `dist`, not the TypeScript source: a launchd agent should not depend
+on `tsx` resolving.
+
+```bash
+launchctl load ~/Library/LaunchAgents/dev.gca.claude-push.plist
+```
+
+Nothing is pushed that the status line would not have sent: two percentages and two
+reset timestamps. There is no session id, model, path or cost in a pushed payload,
+because none of that exists outside a render.
 
 ### Automating it — server in Docker
 

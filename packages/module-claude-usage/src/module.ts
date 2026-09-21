@@ -519,6 +519,21 @@ class ClaudeUsageRuntime implements ModuleRuntime<ClaudeUsageSnapshot> {
       };
     }
 
+    // A payload that actually arrived is the strongest evidence available: something
+    // authenticated against the ingestion endpoint and posted. Whatever is still
+    // missing is Claude Code not reporting usage yet, which is waiting rather than a
+    // fault. This is checked before the local-CLI branches because in a container it
+    // is the only signal there is — the CLI and the host settings file are both out
+    // of reach, and without it a working bridge is reported as a broken one.
+    const delivered = await this.ctx.host.bridgeInbox?.latest().catch(() => null);
+    if (delivered) {
+      return {
+        headline: 'Waiting for data',
+        detail: 'Bridge connected · no usage reported yet',
+        waiting: true,
+      };
+    }
+
     const cli = this.#cli ?? (await this.detectCli().catch(() => null));
     const bridge = await this.ctx.host.claudeSettings?.inspect().catch(() => null);
 

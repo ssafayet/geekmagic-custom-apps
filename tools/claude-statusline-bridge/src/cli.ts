@@ -6,6 +6,7 @@
  *   gca-claude-bridge install                        add the bridge to ~/.claude/settings.json
  *   gca-claude-bridge uninstall                      restore the previous status line
  *   gca-claude-bridge status                         show install state
+ *   gca-claude-bridge push                           read local usage and post it now
  *
  * `install` is available without the web UI so headless and Docker deployments can set
  * the bridge up on the host, where Claude Code actually runs.
@@ -15,6 +16,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { defaultDataDir, LocalClaudeSettingsService, type BridgeManifest } from '@gca/core';
 import { readConfig, readStdin, runBridge } from './bridge.js';
+import { describePush, pushUsage } from './push.js';
 
 const DEFAULT_PORT = 3210;
 
@@ -33,6 +35,8 @@ async function main(argv: string[]): Promise<number> {
       return statusCommand(flags);
     case 'doctor':
       return doctorCommand(flags);
+    case 'push':
+      return pushCommand(flags);
     case '--help':
     case '-h':
     case 'help':
@@ -64,6 +68,68 @@ async function runCommand(flags: Map<string, string>): Promise<number> {
     // Deliberately silent. Anything written here would appear in the conversation.
     return 0;
   }
+}
+
+/** Default gap between pushes. The reading itself is cached; see `readUsage`. */
+const DEFAULT_PUSH_INTERVAL_SECONDS = 60;
+
+/**
+ * Reads usage from the local Claude Code and posts it to the server.
+ *
+ * This exists because the status line is not the only way to run Claude Code, and a
+ * containerised server cannot read the local CLI for itself. One-shot by default, so
+ * it suits cron or a launchd timer; `--watch` keeps it resident instead.
+ */
+async function pushCommand(flags: Map<string, string>): Promise<number> {
+  const config = {
+    version: 1,
+    endpoint: endpointFor(flags),
+    tokenFile: flags.get('token-file') ?? createService(flags).tokenPath,
+    chainedCommand: null,
+  };
+
+  const once = async (): Promise<number> => {
+    const result = await pushUsage(config);
+    process.stdout.write(`${describePush(result)}\n`);
+    return result.posted && result.accepted !== false ? 0 : 1;
+  };
+
+  if (!flags.has('watch')) return once();
+
+  const seconds = Number(flags.get('interval') ?? DEFAULT_PUSH_INTERVAL_SECONDS);
+  const intervalMs =
+    (Number.isFinite(seconds) && seconds >= 10 ? seconds : DEFAULT_PUSH_INTERVAL_SECONDS) * 1000;
+  process.stdout.write(`Pushing usage to ${config.endpoint} every ${intervalMs / 1000}s.\n`);
+
+  let stopping = false;
+  let wake: (() => void) | null = null;
+  for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+    process.on(signal, () => {
+      stopping = true;
+      wake?.();
+    });
+  }
+
+  // A failure must not end the loop: the server may simply be restarting.
+  while (!stopping) {
+    await once().catch(() => 1);
+    if (stopping) break;
+    // A referenced timer, deliberately: it is the only thing holding the event loop
+    // open between pushes. Unreferencing it lets Node exit mid-wait, which under a
+    // KeepAlive supervisor looks like it is working while actually crash-looping.
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(() => {
+        wake = null;
+        resolve();
+      }, intervalMs);
+      wake = () => {
+        clearTimeout(timer);
+        wake = null;
+        resolve();
+      };
+    });
+  }
+  return 0;
 }
 
 async function installCommand(flags: Map<string, string>): Promise<number> {
@@ -327,12 +393,17 @@ function printHelp(): void {
       '  uninstall               Restore the previous status line',
       '  status                  Print install state as JSON',
       '  doctor                  Explain why usage is not arriving (probes the server)',
+      '  push [--watch]          Read usage from the local Claude Code and post it now.',
+      '                          Use this when the status line never fires, or when the',
+      '                          server runs in a container and cannot read the CLI.',
       '',
       'Flags:',
       '  --data-dir <path>       Application data directory',
       '  --settings <path>       Override the Claude settings file',
       '  --port <number>         Server port (default 3210)',
       '  --endpoint <url>        Full ingestion URL, overriding --port',
+      '  --interval <seconds>    Gap between pushes with --watch (default 60, min 10)',
+      '  --token-file <path>     Read the ingestion token from this file',
       '  --token <value>         Use this ingestion token (or set GCA_BRIDGE_TOKEN).',
       '                          Required when the server runs in a container.',
       '',

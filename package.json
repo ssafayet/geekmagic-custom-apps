@@ -17,6 +17,7 @@
     "start": "node apps/server/dist/main.js",
     "db:migrate": "tsx --conditions=development apps/server/src/cli/migrate.ts",
     "bridge:install": "tsx --conditions=development tools/claude-statusline-bridge/src/cli.ts install",
+    "bridge:push": "tsx --conditions=development tools/claude-statusline-bridge/src/cli.ts push",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest run --project web",
