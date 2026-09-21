@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { ApiError } from '../api/client.js';
 import { useStatus } from '../api/hooks.js';
 import { Card, EmptyState, HealthBadge, Spinner4, Banner } from '../components/ui.js';
 import { Preview } from '../components/Preview.js';
@@ -9,7 +10,20 @@ export function OverviewPage() {
 
   if (status.isLoading) return <Spinner4 />;
   if (status.isError) {
-    return (
+    // A 401 means the server answered, so "cannot reach" would be a lie — and the
+    // way out is a password, which no amount of retrying supplies.
+    const unauthorized = status.error instanceof ApiError && status.error.status === 401;
+    return unauthorized ? (
+      <Banner tone="bad" title="This server requires a password">
+        No administrator password has been set, so the API refuses every request. Either bind the
+        server to 127.0.0.1, or set <code>GCA_AUTH_REQUIRED=false</code> when the port is published
+        on loopback only, or set a password:
+        <pre className="mt-2 overflow-x-auto rounded bg-[var(--color-surface-3)] p-2 text-xs">
+          curl -X POST {window.location.origin}/api/v1/auth/password -H &apos;content-type:
+          application/json&apos; -d &apos;{'{"password":"at-least-12-chars"}'}&apos;
+        </pre>
+      </Banner>
+    ) : (
       <Banner tone="bad" title="Cannot reach the server">
         {String(status.error)}
       </Banner>

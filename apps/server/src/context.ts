@@ -100,7 +100,17 @@ export async function createAppContext(options: CreateContextOptions): Promise<A
     bridgeCommand: resolveBridgeCommand(),
     endpoint: `http://127.0.0.1:${config.port}/internal/claude/statusline`,
   });
-  bridgeInbox.setToken(claudeSettings.readOrCreateToken());
+  // An explicit token lets a containerised server and a host-side bridge agree on a
+  // secret without sharing a data directory.
+  bridgeInbox.setToken(config.bridgeToken ?? claudeSettings.readOrCreateToken());
+  if (config.bridgeToken) {
+    logger.info('Bridge ingestion token taken from GCA_BRIDGE_TOKEN');
+  }
+  if (config.bridgeAllowPrivateSources) {
+    logger.warn(
+      'Bridge ingestion accepts any private source address. Publish the port on 127.0.0.1 only.',
+    );
+  }
 
   const settings = readCoreSettings(store);
 

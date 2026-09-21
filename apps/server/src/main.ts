@@ -9,12 +9,20 @@ async function main(): Promise<void> {
   const ctx = await createAppContext({ config, logger });
   const app = await buildServer(ctx);
 
-  if (config.isExposed && !app.auth.configured) {
-    // Refuse to expose an unauthenticated control panel to the network. The user can
-    // still reach it on loopback to set a password.
+  if (config.authRequired && !app.auth.configured) {
+    // Every browser API call will answer 401 until a password exists, and there is
+    // no way to set one from a locked-out UI. Say exactly how to get out of it.
     logger.error(
       { host: config.host },
-      'GCA_HOST binds beyond loopback but no administrator password is set. Start on 127.0.0.1 first and set one in Settings.',
+      'Authentication is required but no administrator password is set, so the web UI will be refused. ' +
+        'Set one with: curl -X POST http://127.0.0.1:PORT/api/v1/auth/password -H "content-type: application/json" -d \'{"password":"..."}\' ' +
+        '— or bind GCA_HOST=127.0.0.1, or set GCA_AUTH_REQUIRED=false when the port is published on loopback only.',
+    );
+  }
+  if (config.isExposed && !config.authRequired) {
+    logger.warn(
+      { host: config.host },
+      'GCA_AUTH_REQUIRED=false while bound beyond loopback. Only do this when something else limits who can connect.',
     );
   }
 

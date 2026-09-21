@@ -31,6 +31,8 @@ async function main(argv: string[]): Promise<number> {
       return uninstallCommand(flags);
     case 'status':
       return statusCommand(flags);
+    case 'doctor':
+      return doctorCommand(flags);
     case '--help':
     case '-h':
     case 'help':
@@ -66,6 +68,13 @@ async function runCommand(flags: Map<string, string>): Promise<number> {
 
 async function installCommand(flags: Map<string, string>): Promise<number> {
   const service = createService(flags);
+
+  // A server that was handed GCA_BRIDGE_TOKEN has a token this side cannot derive,
+  // so accept it explicitly. Without this a containerised server and a host bridge
+  // generate different secrets and every post is rejected.
+  const supplied = flags.get('token') ?? process.env['GCA_BRIDGE_TOKEN'];
+  if (supplied && supplied !== 'true') service.writeToken(supplied);
+
   const state = await service.install();
   const token = service.readOrCreateToken();
 
@@ -79,8 +88,15 @@ async function installCommand(flags: Map<string, string>): Promise<number> {
     process.stdout.write(`Existing status line preserved and chained: ${state.chainedCommand}\n`);
   }
   process.stdout.write(`Token file: ${service.tokenPath} (${token.length} chars, mode 0600)\n`);
-  process.stdout.write('Usage appears on the display after Claude Code makes its next request.\n');
-  return 0;
+
+  // Installing successfully says nothing about whether the server will accept what
+  // this posts, and `run` can never tell anyone: it swallows every error. Probe now,
+  // while the person is still looking, rather than leaving them with a status line
+  // that silently 401s forever.
+  process.stdout.write('\nChecking the server accepts this token...\n');
+  const probe = await probeServer(endpointFor(flags), token);
+  process.stdout.write(`${probe.lines.join('\n')}\n`);
+  return probe.ok ? 0 : 1;
 }
 
 async function uninstallCommand(flags: Map<string, string>): Promise<number> {
@@ -111,6 +127,128 @@ async function statusCommand(flags: Map<string, string>): Promise<number> {
     ) + '\n',
   );
   return state.installed ? 0 : 1;
+}
+
+/**
+ * Explains why usage is not arriving.
+ *
+ * `run` cannot report anything: it swallows every failure so a broken bridge never
+ * disrupts a Claude Code session. That is the right trade for the hot path and the
+ * wrong one for a person trying to find out what is wrong, so the diagnosis lives
+ * here instead.
+ */
+async function doctorCommand(flags: Map<string, string>): Promise<number> {
+  const service = createService(flags);
+  const state = await service.inspect();
+  const endpoint = endpointFor(flags);
+
+  const lines: string[] = [];
+  let failed = false;
+
+  lines.push(
+    state.installed
+      ? `Installed in ${state.settingsPath}`
+      : `NOT installed in ${state.settingsPath} — run \`install\``,
+  );
+  if (!state.installed) failed = true;
+  if (state.conflict) lines.push(`Conflict: ${state.conflict}`);
+
+  let token = '';
+  try {
+    token = service.readOrCreateToken();
+  } catch {
+    lines.push(`Could not read the token file at ${service.tokenPath}`);
+    failed = true;
+  }
+
+  if (token) {
+    const probe = await probeServer(endpoint, token, service.tokenPath);
+    lines.push(...probe.lines);
+    if (!probe.ok) failed = true;
+  }
+
+  process.stdout.write(`${lines.join('\n')}\n`);
+  return failed ? 1 : 0;
+}
+
+/**
+ * Asks the server whether it would accept what this bridge posts.
+ *
+ * Uses the read-only status route rather than posting a synthetic payload, so a
+ * check never overwrites a real reading with a probe.
+ */
+async function probeServer(
+  endpoint: string,
+  token: string,
+  tokenPath?: string,
+): Promise<{ ok: boolean; lines: string[] }> {
+  const statusUrl = endpoint.replace(/\/statusline$/, '/status');
+  const lines: string[] = [];
+
+  let response: Response;
+  try {
+    response = await fetch(statusUrl, {
+      headers: { authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(4_000),
+    });
+  } catch (error) {
+    lines.push(`Cannot reach ${statusUrl} (${errorName(error)}).`);
+    lines.push('  Is the server running, and does --endpoint name the right port?');
+    return { ok: false, lines };
+  }
+
+  const body = await response.text().catch(() => '');
+
+  if (response.status === 200) {
+    const received = safeParse(body)?.['lastReceivedAt'];
+    lines.push('OK: the server is reachable and accepts this token.');
+    lines.push(
+      typeof received === 'string'
+        ? `  Last payload received at ${received}.`
+        : "  No payload has arrived yet; one follows Claude Code's next render.",
+    );
+    return { ok: true, lines };
+  }
+
+  if (response.status === 401 && body.includes('Invalid bridge token')) {
+    lines.push('FAILED: the server rejects this token, so no usage will ever arrive.');
+    if (tokenPath) lines.push(`  This side reads ${tokenPath}`);
+    lines.push('  The server was started with a different one. Re-run install with it:');
+    lines.push('    install --token "$GCA_BRIDGE_TOKEN"');
+    lines.push('  In Docker, check the container really received it:');
+    lines.push('    docker compose --env-file .env -f docker/compose.yaml config');
+    return { ok: false, lines };
+  }
+
+  if (response.status === 401) {
+    lines.push('FAILED: the server refuses this source address.');
+    lines.push('  A published container port arrives through NAT rather than loopback.');
+    lines.push('  Set GCA_BRIDGE_ALLOW_PRIVATE_SOURCES=true on the server.');
+    return { ok: false, lines };
+  }
+
+  if (response.status === 404) {
+    lines.push(`FAILED: ${statusUrl} returned 404.`);
+    lines.push('  The server predates the doctor check; rebuild it.');
+    return { ok: false, lines };
+  }
+
+  lines.push(`FAILED: unexpected ${response.status} from ${statusUrl}: ${body.slice(0, 200)}`);
+  return { ok: false, lines };
+}
+
+function safeParse(body: string): Record<string, unknown> | null {
+  try {
+    const parsed: unknown = JSON.parse(body);
+    return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
+function errorName(error: unknown): string {
+  if (error instanceof Error) return error.name;
+  return 'Error';
 }
 
 function createService(flags: Map<string, string>): LocalClaudeSettingsService {
@@ -188,12 +326,15 @@ function printHelp(): void {
       '  install                 Install the bridge into ~/.claude/settings.json',
       '  uninstall               Restore the previous status line',
       '  status                  Print install state as JSON',
+      '  doctor                  Explain why usage is not arriving (probes the server)',
       '',
       'Flags:',
       '  --data-dir <path>       Application data directory',
       '  --settings <path>       Override the Claude settings file',
       '  --port <number>         Server port (default 3210)',
       '  --endpoint <url>        Full ingestion URL, overriding --port',
+      '  --token <value>         Use this ingestion token (or set GCA_BRIDGE_TOKEN).',
+      '                          Required when the server runs in a container.',
       '',
     ].join('\n'),
   );

@@ -8,9 +8,11 @@ afterEach(async () => {
   harness = null;
 });
 
-/** Binding beyond loopback is what turns authentication on. */
+/** Binding beyond loopback is what turns authentication on, unless overridden. */
 async function exposedApp(): Promise<TestApp> {
-  return createTestApp({ configOverrides: { host: '0.0.0.0', isExposed: true } });
+  return createTestApp({
+    configOverrides: { host: '0.0.0.0', isExposed: true, authRequired: true },
+  });
 }
 
 describe('loopback deployment', () => {
@@ -161,5 +163,94 @@ describe('exposed deployment', () => {
 
     // No session cookie, no CSRF header, yet accepted: it has its own controls.
     expect(response.statusCode).toBe(200);
+  });
+});
+
+/**
+ * Docker publishes the port through NAT, so a post from the host arrives from the
+ * bridge gateway rather than 127.0.0.1. Verified against a real container: without
+ * the allowance the request is rejected with "Rejected non-local bridge request".
+ */
+describe('authentication override', () => {
+  // A container publishing 127.0.0.1:3210 binds 0.0.0.0 internally but is reachable
+  // only from the host. Without this the UI is locked behind a password that no
+  // screen exists to set.
+  it('serves the API on an exposed bind when auth is explicitly disabled', async () => {
+    harness = await createTestApp({
+      configOverrides: { host: '0.0.0.0', isExposed: true, authRequired: false },
+    });
+
+    const response = await harness.app.inject({ method: 'GET', url: '/api/v1/status' });
+
+    expect(response.statusCode).toBe(200);
+  });
+
+  it('can demand a login on a loopback bind', async () => {
+    harness = await createTestApp({ configOverrides: { authRequired: true } });
+
+    const response = await harness.app.inject({ method: 'GET', url: '/api/v1/status' });
+
+    expect(response.statusCode).toBe(401);
+  });
+});
+
+describe('bridge ingestion source policy', () => {
+  const GATEWAY = '172.17.0.1';
+
+  function payload(harness: TestApp) {
+    return {
+      method: 'POST' as const,
+      url: '/internal/claude/statusline',
+      headers: { authorization: `Bearer ${harness.ctx.claudeSettings.readOrCreateToken()}` },
+      payload: { version: '2.1.0' },
+      remoteAddress: GATEWAY,
+    };
+  }
+
+  it('rejects a non-loopback source by default', async () => {
+    harness = await createTestApp();
+
+    const response = await harness.app.inject(payload(harness));
+
+    expect(response.statusCode).toBe(401);
+    expect(response.body).toContain('local connections');
+  });
+
+  it('accepts a private source once the allowance is set', async () => {
+    harness = await createTestApp({
+      configOverrides: { bridgeAllowPrivateSources: true },
+    });
+
+    const response = await harness.app.inject(payload(harness));
+
+    expect(response.statusCode).toBe(200);
+  });
+
+  it('still rejects a public source with the allowance set', async () => {
+    harness = await createTestApp({
+      configOverrides: { bridgeAllowPrivateSources: true },
+    });
+
+    const response = await harness.app.inject({
+      ...payload(harness),
+      remoteAddress: '203.0.113.7',
+    });
+
+    expect(response.statusCode).toBe(401);
+  });
+
+  // The allowance widens which addresses may connect; it is not a way in.
+  it('still requires the token with the allowance set', async () => {
+    harness = await createTestApp({
+      configOverrides: { bridgeAllowPrivateSources: true },
+    });
+
+    const response = await harness.app.inject({
+      ...payload(harness),
+      headers: { authorization: 'Bearer not-the-token-at-all' },
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.body).toContain('Invalid bridge token');
   });
 });

@@ -226,3 +226,62 @@ describe('deepEqual', () => {
     expect(deepEqual(null, {})).toBe(false);
   });
 });
+
+describe('re-installing', () => {
+  const ORIGINAL = { type: 'command', command: '/usr/local/bin/my-statusline', padding: 0 };
+
+  it('does not chain the bridge to itself', async () => {
+    writeFileSync(settingsPath, JSON.stringify({ statusLine: ORIGINAL }));
+    const first = await service().install();
+    expect(first.chainedCommand).toBe('/usr/local/bin/my-statusline');
+
+    // Running install again used to treat the bridge's own status line as a
+    // pre-existing one, so every render spawned it twice and posted twice.
+    const second = await service().install();
+
+    expect(second.chainedCommand).toBe('/usr/local/bin/my-statusline');
+
+    // The written command must invoke the bridge once, not wrap a previous one.
+    const written = readSettings()['statusLine'] as { command: string };
+    expect(written.command).toContain('/opt/gca/bridge.js');
+    expect(written.command).not.toContain('my-statusline');
+    expect(service().readManifest()?.previousStatusLine).toEqual(ORIGINAL);
+  });
+
+  it('keeps uninstall able to restore the original after repeated installs', async () => {
+    writeFileSync(settingsPath, JSON.stringify({ statusLine: ORIGINAL }));
+    await service().install();
+    await service().install();
+    await service().install();
+
+    await service().uninstall();
+
+    expect(readSettings()['statusLine']).toEqual(ORIGINAL);
+  });
+
+  it('repairs a manifest an earlier install already self-chained', async () => {
+    writeFileSync(settingsPath, JSON.stringify({}));
+    await service().install();
+    const svc = service();
+    const manifest = svc.readManifest();
+    // Reproduce the corruption the old install produced, by hand.
+    writeFileSync(
+      svc.manifestPath,
+      JSON.stringify({ ...manifest, previousStatusLine: manifest?.writtenStatusLine }),
+    );
+
+    const state = await service().install();
+
+    expect(state.chainedCommand).toBeNull();
+    expect(service().readManifest()?.previousStatusLine).toBeNull();
+  });
+
+  it('leaves nothing chained when there was no status line to begin with', async () => {
+    writeFileSync(settingsPath, JSON.stringify({}));
+    await service().install();
+
+    const second = await service().install();
+
+    expect(second.chainedCommand).toBeNull();
+  });
+});

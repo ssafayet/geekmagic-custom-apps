@@ -30,7 +30,7 @@ export class AuthService {
   constructor(private readonly ctx: AppContext) {}
 
   get required(): boolean {
-    return this.ctx.config.isExposed;
+    return this.ctx.config.authRequired;
   }
 
   get configured(): boolean {

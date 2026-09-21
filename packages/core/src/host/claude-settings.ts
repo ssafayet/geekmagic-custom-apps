@@ -15,6 +15,7 @@ import type { ClaudeBridgeInstallState, ClaudeSettingsService } from '@gca/modul
 export const BRIDGE_MANIFEST_VERSION = 1;
 const MANIFEST_FILENAME = 'claude-bridge.json';
 const TOKEN_FILENAME = 'claude-bridge.token';
+const MIN_TOKEN_LENGTH = 16;
 const MAX_SETTINGS_BYTES = 1024 * 1024;
 
 export interface BridgeManifest {
@@ -76,13 +77,31 @@ export class LocalClaudeSettingsService implements ClaudeSettingsService {
   readOrCreateToken(): string {
     if (existsSync(this.#tokenPath)) {
       const token = readFileSync(this.#tokenPath, 'utf8').trim();
-      if (token.length >= 16) return token;
+      if (token.length >= MIN_TOKEN_LENGTH) return token;
     }
     const token = randomToken(32);
     mkdirSync(dirname(this.#tokenPath), { recursive: true });
     writeFileSync(this.#tokenPath, token, { mode: 0o600 });
     chmodSync(this.#tokenPath, 0o600);
     return token;
+  }
+
+  /**
+   * Stores a token chosen elsewhere, so the bridge can match a server that was
+   * given one through `GCA_BRIDGE_TOKEN`.
+   */
+  writeToken(token: string): string {
+    const trimmed = token.trim();
+    if (trimmed.length < MIN_TOKEN_LENGTH) {
+      throw new AppError(
+        'VALIDATION_FAILED',
+        `A bridge token must be at least ${MIN_TOKEN_LENGTH} characters.`,
+      );
+    }
+    mkdirSync(dirname(this.#tokenPath), { recursive: true });
+    writeFileSync(this.#tokenPath, trimmed, { mode: 0o600 });
+    chmodSync(this.#tokenPath, 0o600);
+    return trimmed;
   }
 
   async inspect(): Promise<ClaudeBridgeInstallState> {
@@ -116,7 +135,21 @@ export class LocalClaudeSettingsService implements ClaudeSettingsService {
 
   async install(): Promise<ClaudeBridgeInstallState> {
     const existing = this.readSettings() ?? {};
-    const previousStatusLine = existing['statusLine'] ?? null;
+    const current = existing['statusLine'] ?? null;
+
+    // Re-installing must not chain the bridge to its own previous invocation: that
+    // makes every render spawn it twice, post twice, and turns uninstall into a
+    // no-op that "restores" the bridge. Carry forward whatever the first install
+    // displaced instead, so running this repeatedly is genuinely idempotent.
+    const alreadyOurs = isBridgeStatusLine(current, this.#manifestPath);
+    const recorded = this.readManifest()?.previousStatusLine ?? null;
+    // Also repair a manifest an earlier install already corrupted this way: what it
+    // recorded as "previous" may itself be the bridge.
+    const previousStatusLine = alreadyOurs
+      ? isBridgeStatusLine(recorded, this.#manifestPath)
+        ? null
+        : recorded
+      : current;
 
     // Ensure the token exists before the command that depends on it is written.
     this.readOrCreateToken();
@@ -298,4 +331,17 @@ export function deepEqual(a: unknown, b: unknown): boolean {
       key === bKeys[index] &&
       deepEqual((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]),
   );
+}
+
+/**
+ * Recognises a status line this bridge wrote.
+ *
+ * Matched on the manifest path rather than the whole command, because the node
+ * binary and the source-versus-dist entry point legitimately differ between the
+ * `tsx` development path and an installed build.
+ */
+export function isBridgeStatusLine(statusLine: unknown, manifestPath: string): boolean {
+  if (!statusLine || typeof statusLine !== 'object') return false;
+  const command = (statusLine as { command?: unknown }).command;
+  return typeof command === 'string' && command.includes(manifestPath);
 }
