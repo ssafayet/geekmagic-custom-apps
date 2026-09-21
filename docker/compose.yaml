@@ -1,0 +1,32 @@
+services:
+  geekmagic-custom-apps:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: geekmagic-custom-apps:1.0.0
+    restart: unless-stopped
+
+    # Host networking is the simplest way to reach displays on your LAN and to
+    # accept the Claude status-line bridge on loopback. On Docker Desktop (macOS
+    # and Windows) host networking behaves differently: use the ports mapping
+    # below instead and make sure the display subnet is routable.
+    network_mode: host
+
+    environment:
+      GCA_HOST: 0.0.0.0
+      GCA_PORT: 3210
+      GCA_DATA_DIR: /data
+      GCA_LOG_LEVEL: info
+      # Mount your own key to keep secrets readable across container rebuilds.
+      # GCA_MASTER_KEY_FILE: /run/secrets/gca_master_key
+
+    volumes:
+      - gca-data:/data
+      # - ./master.key:/run/secrets/gca_master_key:ro
+
+    # Uncomment together with removing `network_mode: host`.
+    # ports:
+    #   - "127.0.0.1:3210:3210"
+
+volumes:
+  gca-data:
