@@ -138,6 +138,20 @@ export const MIGRATIONS: Migration[] = [
       DROP TABLE IF EXISTS devices;
     `,
   },
+  {
+    version: 2,
+    name: 'audit-acknowledgement',
+    up: /* sql */ `
+      ALTER TABLE audit_events ADD COLUMN acknowledged_at TEXT;
+      CREATE INDEX idx_audit_unacknowledged
+        ON audit_events (severity, acknowledged_at, created_at DESC);
+    `,
+    // Dropping the column loses which problems were dismissed, never the events themselves.
+    down: /* sql */ `
+      DROP INDEX IF EXISTS idx_audit_unacknowledged;
+      ALTER TABLE audit_events DROP COLUMN acknowledged_at;
+    `,
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS.reduce(

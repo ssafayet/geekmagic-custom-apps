@@ -56,6 +56,7 @@ export function registerCoreRoutes(
 
     // Only actionable problems reach the overview; routine info stays in the audit log.
     const recentErrors = ctx.store.audit.recentProblems(8).map((event) => ({
+      id: event.id,
       at: event.createdAt,
       code: String(event.details['code'] ?? event.eventType),
       message: String(event.details['message'] ?? event.eventType),
@@ -74,6 +75,34 @@ export function registerCoreRoutes(
         authenticationRequired: app.auth.required,
       },
     };
+  });
+
+  /**
+   * Clears problems from the overview. Dismissal is an acknowledgement, not a delete:
+   * the events stay in the audit log and in the diagnostic report.
+   */
+  app.post('/api/v1/problems/dismiss', async (request) => {
+    const body = (request.body ?? {}) as { ids?: unknown };
+    let ids: string[] | undefined;
+    if (body.ids !== undefined) {
+      if (!Array.isArray(body.ids) || body.ids.some((id) => typeof id !== 'string')) {
+        throw new AppError('VALIDATION_FAILED', 'ids must be an array of event ids.');
+      }
+      ids = body.ids as string[];
+    }
+
+    // Without ids every problem raised so far is cleared, including the ones beyond
+    // the eight the overview shows — otherwise "clear all" would refill itself.
+    const dismissed = ctx.store.audit.acknowledgeProblems(ids ? { ids } : {});
+    if (dismissed > 0) {
+      ctx.store.audit.record({
+        eventType: 'problems.dismissed',
+        actor: 'operator',
+        entityType: 'app',
+        details: { count: dismissed, scope: ids ? 'selected' : 'all' },
+      });
+    }
+    return { dismissed };
   });
 
   app.get(

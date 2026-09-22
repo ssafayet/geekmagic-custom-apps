@@ -1,12 +1,13 @@
 import { Link } from 'react-router-dom';
 import { ApiError } from '../api/client.js';
-import { useStatus } from '../api/hooks.js';
-import { Card, EmptyState, HealthBadge, Spinner4, Banner } from '../components/ui.js';
+import { useDismissProblems, useStatus } from '../api/hooks.js';
+import { Banner, Button, Card, EmptyState, HealthBadge, Spinner4 } from '../components/ui.js';
 import { Preview } from '../components/Preview.js';
 import { profileLabel, relativeTime } from '../format.js';
 
 export function OverviewPage() {
   const status = useStatus();
+  const dismiss = useDismissProblems();
 
   if (status.isLoading) return <Spinner4 />;
   if (status.isError) {
@@ -158,21 +159,51 @@ export function OverviewPage() {
         )}
       </div>
 
-      <Card title="Recent problems" description="Only actionable errors appear here.">
+      <Card
+        title="Recent problems"
+        description="Only actionable errors appear here."
+        actions={
+          data.recentErrors.length > 0 && (
+            <Button
+              variant="ghost"
+              busy={dismiss.isPending && !dismiss.variables?.ids}
+              onClick={() => dismiss.mutate({})}
+            >
+              Clear all
+            </Button>
+          )
+        }
+      >
+        {dismiss.isError && (
+          <div className="mb-3">
+            <Banner tone="bad">{String(dismiss.error)}</Banner>
+          </div>
+        )}
         {data.recentErrors.length === 0 ? (
           <p className="text-sm text-[var(--color-ink-muted)]">Nothing to report.</p>
         ) : (
           <ul className="grid gap-2">
-            {data.recentErrors.map((entry, index) => (
+            {data.recentErrors.map((entry) => (
               <li
-                key={`${entry.at}-${index}`}
+                key={entry.id}
                 className="rounded-lg border border-[#5c2330] bg-[#2a1118] p-3 text-sm"
               >
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <span className="font-mono text-xs text-[var(--color-bad)]">{entry.code}</span>
-                  <span className="text-xs text-[var(--color-ink-faint)]">
-                    {relativeTime(entry.at)}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-[var(--color-ink-faint)]">
+                      {relativeTime(entry.at)}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      className="-my-1 px-2 py-1 text-xs"
+                      aria-label={`Clear ${entry.code}`}
+                      busy={dismiss.isPending && dismiss.variables?.ids?.includes(entry.id)}
+                      onClick={() => dismiss.mutate({ ids: [entry.id] })}
+                    >
+                      ✕
+                    </Button>
+                  </div>
                 </div>
                 <p className="mt-1 text-[var(--color-ink-muted)]">{entry.message}</p>
               </li>

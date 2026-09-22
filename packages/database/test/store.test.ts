@@ -451,6 +451,38 @@ describe('audit repository', () => {
     ).toEqual(['b', 'c']);
   });
 
+  it('hides acknowledged problems without deleting the events', () => {
+    const store = memoryStore();
+    store.audit.record({ eventType: 'a', entityType: 'app', severity: 'warn' });
+    store.audit.record({ eventType: 'b', entityType: 'app', severity: 'error' });
+
+    expect(store.audit.acknowledgeProblems()).toBe(2);
+    expect(store.audit.recentProblems()).toEqual([]);
+    expect(store.audit.recent(10)).toHaveLength(2);
+    expect(store.audit.recent(10).every((event) => event.acknowledgedAt !== null)).toBe(true);
+  });
+
+  it('acknowledges only the named problems and never re-acknowledges', () => {
+    const store = memoryStore();
+    const first = store.audit.record({ eventType: 'a', entityType: 'app', severity: 'error' });
+    store.audit.record({ eventType: 'b', entityType: 'app', severity: 'error' });
+    const info = store.audit.record({ eventType: 'c', entityType: 'app' });
+
+    expect(store.audit.acknowledgeProblems({ ids: [first.id, info.id] })).toBe(1);
+    expect(store.audit.recentProblems().map((event) => event.eventType)).toEqual(['b']);
+    expect(store.audit.acknowledgeProblems({ ids: [first.id] })).toBe(0);
+    expect(store.audit.acknowledgeProblems({ ids: [] })).toBe(0);
+  });
+
+  it('leaves problems raised after the acknowledgement cutoff visible', () => {
+    const store = memoryStore();
+    store.audit.record({ eventType: 'old', entityType: 'app', severity: 'error' });
+    const cutoff = new Date(Date.now() - 60_000).toISOString();
+
+    expect(store.audit.acknowledgeProblems({ before: cutoff })).toBe(0);
+    expect(store.audit.recentProblems().map((event) => event.eventType)).toEqual(['old']);
+  });
+
   it('prunes to the most recent entries', () => {
     const store = memoryStore();
     for (let i = 0; i < 20; i += 1) store.audit.record({ eventType: `e${i}`, entityType: 'app' });

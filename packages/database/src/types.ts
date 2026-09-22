@@ -91,4 +91,6 @@ export interface AuditEventRecord {
   severity: 'info' | 'warn' | 'error';
   details: Record<string, unknown>;
   createdAt: string;
+  /** Set once an operator has cleared the event from the overview. */
+  acknowledgedAt: string | null;
 }

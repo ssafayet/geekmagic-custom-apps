@@ -167,6 +167,8 @@ export interface StatusSummaryDto {
     lastSuccessAt: string | null;
   }>;
   recentErrors: Array<{
+    /** Audit event id, which is what `POST /problems/dismiss` clears. */
+    id: string;
     at: string;
     code: string;
     message: string;

@@ -320,6 +320,23 @@ export function useSavePlaylist(
   });
 }
 
+/**
+ * Clears overview problems. Passing no ids clears every problem raised so far, not
+ * just the handful on screen.
+ */
+export function useDismissProblems(): UseMutationResult<
+  { dismissed: number },
+  Error,
+  { ids?: string[] }
+> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (body) =>
+      apiRequest<{ dismissed: number }>('/problems/dismiss', { method: 'POST', body }),
+    onSuccess: () => client.invalidateQueries({ queryKey: queryKeys.status }),
+  });
+}
+
 export function useSaveSettings(): UseMutationResult<
   CoreSettingsDto,
   Error,

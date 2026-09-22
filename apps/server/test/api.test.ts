@@ -78,6 +78,59 @@ describe('core API', () => {
     expect(response.statusCode).toBe(400);
   });
 
+  it('clears overview problems while keeping the events in the audit log', async () => {
+    harness = await createTestApp();
+    const problem = () =>
+      harness!.ctx.store.audit.record({
+        eventType: 'device.upload.unverified',
+        entityType: 'device',
+        severity: 'error',
+        details: { code: 'DEVICE_UPLOAD_UNVERIFIED', message: 'Upload connection dropped.' },
+      });
+    const first = problem();
+    problem();
+
+    const readProblems = async () => {
+      const response = await harness!.app.inject({ method: 'GET', url: '/api/v1/status' });
+      return jsonBody<{ recentErrors: Array<{ id: string }> }>(response).recentErrors;
+    };
+    expect(await readProblems()).toHaveLength(2);
+
+    const one = await harness.app.inject({
+      method: 'POST',
+      url: '/api/v1/problems/dismiss',
+      payload: { ids: [first.id] },
+    });
+    expect(one.statusCode).toBe(200);
+    expect(jsonBody(one)).toEqual({ dismissed: 1 });
+    expect(await readProblems()).toHaveLength(1);
+
+    const rest = await harness.app.inject({
+      method: 'POST',
+      url: '/api/v1/problems/dismiss',
+      payload: {},
+    });
+    expect(jsonBody(rest)).toEqual({ dismissed: 1 });
+    expect(await readProblems()).toEqual([]);
+
+    // Dismissal is an acknowledgement: the evidence stays in the log.
+    const logged = harness.ctx.store.audit
+      .recent(20)
+      .filter((event) => event.eventType === 'device.upload.unverified');
+    expect(logged).toHaveLength(2);
+  });
+
+  it('rejects a dismissal that does not name event ids', async () => {
+    harness = await createTestApp();
+    const response = await harness.app.inject({
+      method: 'POST',
+      url: '/api/v1/problems/dismiss',
+      payload: { ids: 'all' },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(jsonBody(response)).toMatchObject({ error: { code: 'VALIDATION_FAILED' } });
+  });
+
   it('excludes hostnames and coordinates from the diagnostics export', async () => {
     harness = await createTestApp();
     const { host } = await startSimulator({ profile: 'stock-ultra' });
