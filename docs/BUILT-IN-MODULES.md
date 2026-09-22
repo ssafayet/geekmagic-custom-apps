@@ -8,6 +8,14 @@ are written against.
 
 ## Claude Usage
 
+| Overview page                                                                 | On the display                                                        |
+| ----------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| ![The Claude Usage panel on the Overview page](images/claude-usage-panel.png) | ![Claude Usage on a SmallTV-PRO](images/smalltv-pro-claude-usage.jpg) |
+
+The `stale` badge on the right is the module refusing to imply freshness it does not
+have: past **Mark data stale after** (30 minutes by default) the last real reading stays
+on screen with the badge, rather than blanking or falling back to zero.
+
 Subscription usage and API usage are **different products**, and this module keeps them
 clearly separated rather than blending them into one number.
 
@@ -48,6 +56,14 @@ says _waiting_, never zero.
 ---
 
 ## ADS-B Monitor
+
+| Overview page                                                                  | On the display                                                 |
+| ------------------------------------------------------------------------------ | -------------------------------------------------------------- |
+| ![The ADS-B Monitor panel on the Overview page](images/adsb-monitor-panel.png) | ![ADS-B Monitor on a SmallTV-PRO](images/smalltv-pro-adsb.jpg) |
+
+The header reads `NEARBY` or `OVERHEAD`. Operator and route come from a second source,
+so they appear only when the callsign resolved, and the footer credits `adsbdb` only on the
+frames that actually used it — which is why the photo credits `adsb.fi` alone.
 
 Shows the nearest or currently overhead aircraft around a location you configure, with
 distance, altitude, speed and bearing.

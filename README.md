@@ -1,6 +1,6 @@
 # geekmagic-custom-apps
 
-Render small information screens and push them to a **stock GeekMagic display** over its
+Render small information screens and push them to a **stock GeekMagic SmallTV display** over its
 own HTTP API. No Home Assistant, no ESPHome, no custom firmware, and nothing installed
 on the display itself.
 
@@ -18,6 +18,12 @@ Two modules ship in this release:
 - **ADS-B Monitor** — the nearest or currently overhead aircraft around a location you
   configure, with distance, altitude, speed, bearing, and the operator and route behind
   the callsign.
+
+| ADS-B Monitor                                                       | Claude Usage                                                               |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| ![ADS-B Monitor on a SmallTV-PRO](docs/images/smalltv-pro-adsb.jpg) | ![Claude Usage on a SmallTV-PRO](docs/images/smalltv-pro-claude-usage.jpg) |
+
+A SmallTV-PRO on stock firmware `V3.4.88EN`, driven entirely over its own HTTP API.
 
 ---
 
