@@ -40,7 +40,7 @@
     "@gca/renderer": "workspace:*",
     "@gca/secrets": "workspace:*",
     "@gca/shared": "workspace:*",
-    "@types/node": "^22.10.2",
+    "@types/node": "^26.6.4",
     "prettier": "^3.4.2",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3",
