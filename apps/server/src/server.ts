@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import cookie from '@fastify/cookie';
 import rateLimit from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
-import Fastify from 'fastify';
+import Fastify, { LogController } from 'fastify';
 import type { AppContext } from './context.js';
 import { AuthService, registerAuth } from './auth.js';
 import { registerRequestGuard } from './request-guard.js';
@@ -46,9 +46,8 @@ export async function buildServer(ctx: AppContext): Promise<AppServer> {
     bodyLimit: API_BODY_LIMIT,
     trustProxy: ctx.config.trustProxy,
     // Per-request access logs add noise without value for a local control panel that
-    // the UI polls every few seconds; routes log what matters themselves. Fastify 5
-    // warns that this moves under `logController` in Fastify 6.
-    disableRequestLogging: true,
+    // the UI polls every few seconds; routes log what matters themselves.
+    logController: new LogController({ disableRequestLogging: true }),
   });
 
   registerErrorHandler(app);
