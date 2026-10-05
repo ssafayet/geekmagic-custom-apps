@@ -26,31 +26,15 @@ jobs:
       - run: pnpm build
       - run: pnpm test
 
-      - name: Assemble release bundle
-        run: |
-          mkdir -p release/geekmagic-custom-apps
-          cp -r apps/server/dist release/geekmagic-custom-apps/server
-          cp -r apps/web/dist release/geekmagic-custom-apps/web
-          cp -r tools/claude-statusline-bridge/dist release/geekmagic-custom-apps/bridge
-          cp -r packages/renderer/assets release/geekmagic-custom-apps/assets
-          cp README.md LICENSE .env.example release/geekmagic-custom-apps/
-          cp -r docs release/geekmagic-custom-apps/docs
-          tar -czf geekmagic-custom-apps.tar.gz -C release geekmagic-custom-apps
-
       - name: Generate SBOM
         run: |
           pnpm licenses list --prod --json > sbom-licenses.json || true
           npx --yes @cyclonedx/cyclonedx-npm@6.0.1 --output-file sbom.json || true
 
-      - name: Checksums
-        run: sha256sum geekmagic-custom-apps.tar.gz > checksums.txt
-
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: release-bundle
           path: |
-            geekmagic-custom-apps.tar.gz
-            checksums.txt
             sbom.json
             sbom-licenses.json
           if-no-files-found: error
@@ -67,9 +51,10 @@ jobs:
           name: release-bundle
       - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
+          # Source and the container image are the distributions. A prebuilt tarball
+          # was dropped: without the workspace and its native modules it could not
+          # run, which made it look installable when it was not.
           files: |
-            geekmagic-custom-apps.tar.gz
-            checksums.txt
             sbom.json
             sbom-licenses.json
           generate_release_notes: true
