@@ -38,7 +38,7 @@ describe('settingsWithDefaults', () => {
     const legacy = {
       provider: 'adsb-fi',
       locationLabel: 'Home',
-      latitude: 51.470020,
+      latitude: 51.47002,
       longitude: -0.454295,
       searchRadiusNm: 25,
       airborneOnly: true,
@@ -50,7 +50,7 @@ describe('settingsWithDefaults', () => {
 
     expect(merged['routeLookup']).toBe(ADSB_DEFAULT_SETTINGS.routeLookup);
     expect(merged['routeLookup']).toBe(true);
-    expect(merged['latitude']).toBe(51.470020);
+    expect(merged['latitude']).toBe(51.47002);
   });
 
   it('tolerates a row that is not an object at all', () => {
