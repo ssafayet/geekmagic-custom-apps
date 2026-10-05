@@ -8,14 +8,14 @@ tested on real hardware.
 
 Open the **Diagnostics** page, review the report it shows (it excludes hostnames,
 coordinates and credentials), download it, and attach it to a
-[device report](https://github.com/ssafayet/geekmagic-smalltv-custom-apps/issues/new?template=device-report.yml).
+[device report](https://github.com/ssafayet/geekmagic-custom-apps/issues/new?template=device-report.yml).
 That is usually enough to confirm or fix an adapter.
 
 ## Bugs and ideas
 
-Use the [issue templates](https://github.com/ssafayet/geekmagic-smalltv-custom-apps/issues/new/choose).
+Use the [issue templates](https://github.com/ssafayet/geekmagic-custom-apps/issues/new/choose).
 Security problems go to a
-[private advisory](https://github.com/ssafayet/geekmagic-smalltv-custom-apps/security/advisories/new),
+[private advisory](https://github.com/ssafayet/geekmagic-custom-apps/security/advisories/new),
 never a public issue.
 
 ## Code

@@ -1,7 +1,7 @@
 # Security model
 
 > **Reporting a vulnerability:** use
-> [Report a vulnerability](https://github.com/ssafayet/geekmagic-smalltv-custom-apps/security/advisories/new)
+> [Report a vulnerability](https://github.com/ssafayet/geekmagic-custom-apps/security/advisories/new)
 > on the repository's Security tab, not a public issue. You will get a reply there.
 
 Local-first by default: the server binds to `127.0.0.1`, needs no account, and sends

@@ -59,7 +59,7 @@ Data lives in:
 Run under your own account so Claude detection works. Save as
 `~/Library/LaunchAgents/com.geekmagic.customapps.plist`, replacing
 `/usr/local/bin/node` with the output of `which node` (nvm, Homebrew and fnm all put
-it somewhere different) and `/Users/you/geekmagic-smalltv-custom-apps` with your
+it somewhere different) and `/Users/you/geekmagic-custom-apps` with your
 checkout:
 
 ```xml
@@ -73,9 +73,9 @@ checkout:
   <array>
     <string>/usr/local/bin/node</string>
     <string>--env-file-if-exists=.env</string>
-    <string>/Users/you/geekmagic-smalltv-custom-apps/apps/server/dist/main.js</string>
+    <string>/Users/you/geekmagic-custom-apps/apps/server/dist/main.js</string>
   </array>
-  <key>WorkingDirectory</key><string>/Users/you/geekmagic-smalltv-custom-apps</string>
+  <key>WorkingDirectory</key><string>/Users/you/geekmagic-custom-apps</string>
   <key>EnvironmentVariables</key>
   <dict>
     <key>GCA_HOST</key><string>127.0.0.1</string>
@@ -110,8 +110,8 @@ After=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=%h/geekmagic-smalltv-custom-apps
-ExecStart=/usr/bin/node --env-file-if-exists=.env %h/geekmagic-smalltv-custom-apps/apps/server/dist/main.js
+WorkingDirectory=%h/geekmagic-custom-apps
+ExecStart=/usr/bin/node --env-file-if-exists=.env %h/geekmagic-custom-apps/apps/server/dist/main.js
 Environment=GCA_HOST=127.0.0.1
 Environment=GCA_PORT=3210
 Restart=on-failure

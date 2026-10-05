@@ -140,7 +140,7 @@ node path with the output of `which node`, and the checkout path with yours:
   <key>ProgramArguments</key>
   <array>
     <string>/usr/local/bin/node</string>
-    <string>/Users/you/geekmagic-smalltv-custom-apps/tools/claude-statusline-bridge/dist/cli.js</string>
+    <string>/Users/you/geekmagic-custom-apps/tools/claude-statusline-bridge/dist/cli.js</string>
     <string>push</string>
     <string>--watch</string>
   </array>

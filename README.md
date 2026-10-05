@@ -70,8 +70,8 @@ Prefer containers? Skip to [Docker](#docker).
 ## Quick start
 
 ```bash
-git clone https://github.com/ssafayet/geekmagic-smalltv-custom-apps.git
-cd geekmagic-smalltv-custom-apps
+git clone https://github.com/ssafayet/geekmagic-custom-apps.git
+cd geekmagic-custom-apps
 corepack enable
 pnpm install
 pnpm build
