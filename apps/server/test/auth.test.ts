@@ -251,6 +251,32 @@ describe('first password', () => {
     expect(harness.app.auth.setupToken).toBeNull();
   });
 
+  // `pnpm auth:reset` clears the password under a running server, which made no
+  // code at startup because a password existed then.
+  it('still needs a code after the password is cleared under a running server', async () => {
+    harness = await exposedApp();
+    await bootstrap(harness);
+    harness.ctx.store.appSettings.delete('auth.passwordHash');
+
+    const withoutCode = await harness.app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/password',
+      payload: { password: PASSWORD },
+    });
+    expect(withoutCode.statusCode).toBe(401);
+    expect(harness.app.auth.configured).toBe(false);
+
+    const withCode = await harness.app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/password',
+      payload: {
+        password: PASSWORD,
+        setupToken: readFileSync(harness.app.auth.setupTokenPath, 'utf8'),
+      },
+    });
+    expect(withCode.statusCode).toBe(200);
+  });
+
   // Loopback needs no login, so a code would guard nothing the caller lacks.
   it('is not asked for when login is not enforced', async () => {
     harness = await createTestApp();

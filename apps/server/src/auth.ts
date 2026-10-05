@@ -12,7 +12,7 @@ const SESSION_COOKIE = 'gca_session';
 const CSRF_COOKIE = 'gca_csrf';
 const CSRF_HEADER = 'x-gca-csrf';
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-const PASSWORD_HASH_KEY = 'auth.passwordHash';
+export const PASSWORD_HASH_KEY = 'auth.passwordHash';
 const SETUP_TOKEN_FILENAME = 'setup-token';
 
 /**
@@ -44,8 +44,10 @@ export class AuthService {
   #hashesInFlight = 0;
 
   constructor(private readonly ctx: AppContext) {
-    this.#setupTokenPath = join(ctx.config.dataDir, SETUP_TOKEN_FILENAME);
-    if (this.required && !this.configured) this.#setupToken = this.readOrCreateSetupToken();
+    this.#setupTokenPath = setupTokenPath(ctx.config.dataDir);
+    if (this.required && !this.configured) {
+      this.#setupToken = readOrCreateSetupToken(this.#setupTokenPath);
+    }
   }
 
   get required(): boolean {
@@ -76,6 +78,10 @@ export class AuthService {
     if (this.configured) {
       throw new AppError('CONFLICT', 'An administrator password is already set.');
     }
+    // Keyed on whether login is enforced, not on a code having been made at startup:
+    // `pnpm auth:reset` can clear the password while the server is running, and the
+    // first-password route must not then fall open to whoever asks first.
+    if (this.required) this.#setupToken ??= readOrCreateSetupToken(this.#setupTokenPath);
     if (this.#setupToken !== null && !safeEqual(setupToken ?? '', this.#setupToken)) {
       this.ctx.store.audit.record({
         eventType: 'auth.setup-token-rejected',
@@ -84,7 +90,7 @@ export class AuthService {
       });
       throw new AppError(
         'UNAUTHORIZED',
-        'The setup code is missing or wrong. It is printed in the server log at startup.',
+        'The setup code is missing or wrong. It is printed in the server log at startup, and by `pnpm auth:reset`.',
       );
     }
     await this.setPassword(password);
@@ -169,17 +175,6 @@ export class AuthService {
     }
   }
 
-  /** Reuses a token across restarts so the one in an earlier log line keeps working. */
-  private readOrCreateSetupToken(): string {
-    if (existsSync(this.#setupTokenPath)) {
-      const existing = readFileSync(this.#setupTokenPath, 'utf8').trim();
-      if (existing.length >= 16) return existing;
-    }
-    const token = randomToken(18);
-    writeFileSync(this.#setupTokenPath, token, { mode: 0o600 });
-    return token;
-  }
-
   private clearSetupToken(): void {
     this.#setupToken = null;
     try {
@@ -188,6 +183,21 @@ export class AuthService {
       // Already gone is the desired end state.
     }
   }
+}
+
+export function setupTokenPath(dataDir: string): string {
+  return join(dataDir, SETUP_TOKEN_FILENAME);
+}
+
+/** Reuses a token across restarts so the one in an earlier log line keeps working. */
+export function readOrCreateSetupToken(path: string): string {
+  if (existsSync(path)) {
+    const existing = readFileSync(path, 'utf8').trim();
+    if (existing.length >= 16) return existing;
+  }
+  const token = randomToken(18);
+  writeFileSync(path, token, { mode: 0o600 });
+  return token;
 }
 
 export function registerAuth(app: AppServer, ctx: AppContext, auth: AuthService): void {
