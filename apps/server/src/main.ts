@@ -17,7 +17,17 @@ async function main(): Promise<void> {
       `No administrator password is set yet. Open the web UI and enter setup code ${app.auth.setupToken} to choose one.`,
     );
   }
-  if (config.isExposed && !config.authRequired) {
+  if (
+    config.isExposed &&
+    !config.authRequired &&
+    config.publishedHost !== undefined &&
+    isLoopbackBind(config.publishedHost)
+  ) {
+    logger.info(
+      { published: config.publishedHost },
+      'Port published on loopback only, so no login is required.',
+    );
+  } else if (config.isExposed && !config.authRequired) {
     logger.error(
       { host: config.host },
       'GCA_AUTH_REQUIRED=false while bound beyond loopback: anyone who can reach this port controls the app. ' +

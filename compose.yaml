@@ -1,0 +1,52 @@
+# docker compose up -d --build
+#
+# Works as-is on Docker Desktop (macOS, Windows), OrbStack and Linux. Every value
+# below can be overridden from a `.env` file next to this one; none is required.
+# See .env.example and docs/DEPLOYMENT.md#docker.
+name: geekmagic-custom-apps
+
+services:
+  geekmagic-custom-apps:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: geekmagic-custom-apps:1.0.0
+    restart: unless-stopped
+
+    # The port is published on 127.0.0.1 by default: reachable from this machine
+    # only, so no login is needed. Set GCA_PUBLISH_ADDRESS=0.0.0.0 to reach it from
+    # your phone or other computers; the server then requires a login, and
+    # `docker compose logs` shows the setup code for the first password.
+    ports:
+      - '${GCA_PUBLISH_ADDRESS:-127.0.0.1}:${GCA_PORT:-3210}:3210'
+
+    environment:
+      # A published port cannot reach the container's own loopback, so it binds
+      # 0.0.0.0. GCA_PUBLISHED_HOST tells the server where it is actually
+      # reachable, which is what decides whether a login is required.
+      GCA_HOST: 0.0.0.0
+      GCA_PORT: 3210
+      GCA_PUBLISHED_HOST: ${GCA_PUBLISH_ADDRESS:-127.0.0.1}
+      GCA_DATA_DIR: /data
+      GCA_LOG_LEVEL: ${GCA_LOG_LEVEL:-info}
+      # The status-line bridge runs on the host, where Claude Code does, and its
+      # posts arrive through Docker's NAT rather than from loopback. The bridge
+      # token is still required; generate one with `openssl rand -hex 32`.
+      GCA_BRIDGE_TOKEN: ${GCA_BRIDGE_TOKEN:-}
+      GCA_BRIDGE_ALLOW_PRIVATE_SOURCES: ${GCA_BRIDGE_ALLOW_PRIVATE_SOURCES:-true}
+      GCA_AUTH_REQUIRED: ${GCA_AUTH_REQUIRED:-}
+      GCA_PUBLIC_BASE_URL: ${GCA_PUBLIC_BASE_URL:-}
+      GCA_TRUST_PROXY: ${GCA_TRUST_PROXY:-}
+      GCA_ALLOWED_HOSTS: ${GCA_ALLOWED_HOSTS:-}
+      # Mount your own key to keep secrets readable across a volume rebuild:
+      # GCA_MASTER_KEY_FILE: /run/secrets/gca_master_key
+
+    volumes:
+      - gca-data:/data
+      # - ./master.key:/run/secrets/gca_master_key:ro
+
+volumes:
+  gca-data:
+    # The name earlier versions created when this file lived in docker/. Pinned so
+    # upgrading keeps the same database, key and backups.
+    name: docker_gca-data

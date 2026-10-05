@@ -104,3 +104,31 @@ describe('allowed hosts', () => {
     ).toEqual(['displays.example.com', 'other.example']);
   });
 });
+
+/**
+ * A container always binds 0.0.0.0, so the compose file passes the address the port
+ * is published on and the login follows that instead.
+ */
+describe('login in a container', () => {
+  const container = { GCA_HOST: '0.0.0.0' };
+
+  it('is off when the port is published on loopback', () => {
+    expect(loadConfig({ ...container, GCA_PUBLISHED_HOST: '127.0.0.1' }).authRequired).toBe(false);
+  });
+
+  it('is on when the port is published on every interface', () => {
+    expect(loadConfig({ ...container, GCA_PUBLISHED_HOST: '0.0.0.0' }).authRequired).toBe(true);
+  });
+
+  it('follows the bind address when no published address is given', () => {
+    expect(loadConfig(container).authRequired).toBe(true);
+    expect(loadConfig({ ...container, GCA_PUBLISHED_HOST: '' }).authRequired).toBe(true);
+  });
+
+  it('is still forced on by a proxy', () => {
+    expect(
+      loadConfig({ ...container, GCA_PUBLISHED_HOST: '127.0.0.1', GCA_TRUST_PROXY: 'true' })
+        .authRequired,
+    ).toBe(true);
+  });
+});

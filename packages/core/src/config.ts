@@ -32,8 +32,14 @@ export interface AppConfig {
    * private-network names. Needed only for a public DNS name in front of a proxy.
    */
   allowedHosts: string[];
-  /** True when the server listens beyond loopback. Also decides cookie hardening. */
+  /** True when the server listens beyond loopback. */
   isExposed: boolean;
+  /**
+   * The host address a container's port is published on, as the compose file
+   * passes it in. Inside a container the bind address is always 0.0.0.0 and says
+   * nothing about reach; this is what does.
+   */
+  publishedHost: string | undefined;
   /**
    * Whether the browser API demands a signed-in session.
    *
@@ -65,6 +71,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const port = Number(env['GCA_PORT'] ?? 3210);
   const publicBaseUrl = env['GCA_PUBLIC_BASE_URL']?.trim() || undefined;
   const trustProxy = resolveTrustProxy(env['GCA_TRUST_PROXY']);
+  const publishedHost = env['GCA_PUBLISHED_HOST']?.trim() || undefined;
 
   return {
     host,
@@ -78,9 +85,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     trustProxy,
     allowedHosts: parseList(env['GCA_ALLOWED_HOSTS']).map((entry) => entry.toLowerCase()),
     isExposed: !isLoopbackBind(host),
+    publishedHost,
     authRequired: resolveAuthRequired(
       env['GCA_AUTH_REQUIRED'],
-      host,
+      publishedHost ?? host,
       trustProxy !== false || publicBaseUrl !== undefined,
     ),
     version: APP_VERSION,
@@ -136,11 +144,10 @@ export function normalizeBridgeToken(value: string | undefined): string | undefi
 /**
  * Decides whether the browser API requires a login.
  *
- * Unset follows the bind address, which is right for a native install — unless a
- * reverse proxy is configured. A proxy on the same machine connects over loopback,
- * so a loopback bind says nothing about who can reach the app through it. `false`
- * is for a container whose port is published on the host's loopback: the app sees
- * 0.0.0.0 even though nothing outside the host can connect.
+ * Unset follows the address the app is reachable on: the bind address natively,
+ * or the published address a container is told about. Either way a configured
+ * reverse proxy forces it on, since a proxy on the same machine connects over
+ * loopback and a loopback bind then says nothing about who reaches the app.
  */
 export function resolveAuthRequired(
   value: string | undefined,

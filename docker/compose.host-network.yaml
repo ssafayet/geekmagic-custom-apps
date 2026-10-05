@@ -1,0 +1,19 @@
+# Linux only: run on the host's network instead of a published port.
+#
+#   docker compose -f compose.yaml -f docker/compose.host-network.yaml up -d --build
+#
+# The container then sees your LAN directly, so the Devices page can scan your
+# real subnet; with a published port it only sees Docker's own network and you
+# enter the display's IP by hand. Docker Desktop does not support this mode.
+services:
+  geekmagic-custom-apps:
+    network_mode: host
+    ports: !reset []
+    environment:
+      # Natively-bound again: loopback by default, so no login. Set GCA_HOST=0.0.0.0
+      # in .env for LAN access, which turns the login on.
+      GCA_HOST: ${GCA_HOST:-127.0.0.1}
+      GCA_PORT: ${GCA_PORT:-3210}
+      GCA_PUBLISHED_HOST: ''
+      # Bridge posts from the host arrive on loopback here, so no widening needed.
+      GCA_BRIDGE_ALLOW_PRIVATE_SOURCES: ${GCA_BRIDGE_ALLOW_PRIVATE_SOURCES:-false}
