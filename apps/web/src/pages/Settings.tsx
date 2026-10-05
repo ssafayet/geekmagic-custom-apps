@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react';
 import { ApiError } from '../api/client.js';
-import { useHealth, useSaveSettings, useSettings } from '../api/hooks.js';
+import {
+  useAuthState,
+  useChangePassword,
+  useHealth,
+  useSaveSettings,
+  useSettings,
+} from '../api/hooks.js';
 import { Banner, Button, Card, Field, Kv, Spinner4, Switch, inputClass } from '../components/ui.js';
 import { absoluteTime } from '../format.js';
 import type { CoreSettingsDto } from '../api/types.js';
@@ -8,6 +14,7 @@ import type { CoreSettingsDto } from '../api/types.js';
 export function SettingsPage() {
   const settings = useSettings();
   const health = useHealth();
+  const auth = useAuthState();
   const save = useSaveSettings();
 
   const [draft, setDraft] = useState<Partial<CoreSettingsDto>>({});
@@ -197,10 +204,12 @@ export function SettingsPage() {
           </li>
           <li>
             · The server binds to 127.0.0.1 unless you change GCA_HOST; LAN exposure requires a
-            password.
+            password, and it only answers to hostnames on your own network.
           </li>
         </ul>
       </Card>
+
+      {auth.data?.required && auth.data.configured && <ChangePasswordCard />}
 
       <Card title="Server">
         <dl className="grid gap-x-8 sm:grid-cols-2">
@@ -231,5 +240,62 @@ export function SettingsPage() {
         )}
       </Card>
     </div>
+  );
+}
+
+function ChangePasswordCard() {
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const change = useChangePassword();
+
+  const submit = async () => {
+    setError(null);
+    try {
+      await change.mutateAsync({ currentPassword, password });
+    } catch (caught) {
+      setError(caught instanceof ApiError ? caught.message : String(caught));
+    }
+  };
+
+  return (
+    <Card
+      title="Administrator password"
+      description="Changing it signs out every browser, this one included."
+    >
+      <div className="grid gap-4 sm:max-w-md">
+        <Field label="Current password" htmlFor="current-password">
+          <input
+            id="current-password"
+            type="password"
+            className={inputClass}
+            autoComplete="current-password"
+            value={currentPassword}
+            onChange={(event) => setCurrentPassword(event.target.value)}
+          />
+        </Field>
+        <Field label="New password" htmlFor="replacement-password" help="At least 12 characters.">
+          <input
+            id="replacement-password"
+            type="password"
+            className={inputClass}
+            autoComplete="new-password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+          />
+        </Field>
+        {error && <Banner tone="bad">{error}</Banner>}
+        <div>
+          <Button
+            variant="primary"
+            busy={change.isPending}
+            disabled={!currentPassword || password.length < 12}
+            onClick={() => void submit()}
+          >
+            Change password
+          </Button>
+        </div>
+      </div>
+    </Card>
   );
 }

@@ -1,6 +1,7 @@
 import { NavLink, Route, Routes, Navigate } from 'react-router-dom';
 import clsx from 'clsx';
-import { useHealth, useStatus } from './api/hooks.js';
+import { useAuthState, useHealth, useLogout, useStatus } from './api/hooks.js';
+import { Button, Spinner4 } from './components/ui.js';
 import { OverviewPage } from './pages/Overview.js';
 import { DevicesPage } from './pages/Devices.js';
 import { ModulesPage } from './pages/Modules.js';
@@ -8,6 +9,7 @@ import { DisplayOrderPage } from './pages/DisplayOrder.js';
 import { SettingsPage } from './pages/Settings.js';
 import { DiagnosticsPage } from './pages/Diagnostics.js';
 import { OnboardingPage } from './pages/Onboarding.js';
+import { SignInPage } from './pages/SignIn.js';
 
 const NAV = [
   { to: '/', label: 'Overview', end: true },
@@ -20,12 +22,12 @@ const NAV = [
 
 export function App() {
   const health = useHealth();
-  const status = useStatus();
+  const auth = useAuthState();
+  const logout = useLogout();
 
-  // A first run has nothing configured yet; send the user through setup instead of
-  // an overview full of empty cards.
-  const needsOnboarding =
-    status.isSuccess && status.data.devices.length === 0 && status.data.modules.length === 0;
+  // An unreachable server is not a locked one: fall through and let the pages say so.
+  const locked = auth.data ? auth.data.required && !auth.data.authenticated : false;
+  const signedIn = auth.data ? auth.data.required && auth.data.authenticated : false;
 
   return (
     <div className="flex min-h-full flex-col">
@@ -40,54 +42,66 @@ export function App() {
                 v{health.data?.version ?? '—'}
               </span>
             </div>
-            {health.isError && (
-              <span className="text-xs font-medium text-[var(--color-bad)]">
-                Server unreachable
-              </span>
-            )}
+            <div className="flex items-center gap-3">
+              {health.isError && (
+                <span className="text-xs font-medium text-[var(--color-bad)]">
+                  Server unreachable
+                </span>
+              )}
+              {signedIn && (
+                <Button variant="ghost" busy={logout.isPending} onClick={() => logout.mutate()}>
+                  Sign out
+                </Button>
+              )}
+            </div>
           </div>
 
-          <nav aria-label="Sections" className="-mx-1 overflow-x-auto">
-            <ul className="flex gap-1">
-              {NAV.map((item) => (
-                <li key={item.to}>
-                  <NavLink
-                    to={item.to}
-                    end={item.end}
-                    className={({ isActive }) =>
-                      clsx(
-                        'block whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
-                        isActive
-                          ? 'bg-[var(--color-surface-2)] text-[var(--color-ink)]'
-                          : 'text-[var(--color-ink-muted)] hover:bg-[var(--color-surface-1)] hover:text-[var(--color-ink)]',
-                      )
-                    }
-                  >
-                    {item.label}
-                  </NavLink>
-                </li>
-              ))}
-            </ul>
-          </nav>
+          {!locked && (
+            <nav aria-label="Sections" className="-mx-1 overflow-x-auto">
+              <ul className="flex gap-1">
+                {NAV.map((item) => (
+                  <li key={item.to}>
+                    <NavLink
+                      to={item.to}
+                      end={item.end}
+                      className={({ isActive }) =>
+                        clsx(
+                          'block whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
+                          isActive
+                            ? 'bg-[var(--color-surface-2)] text-[var(--color-ink)]'
+                            : 'text-[var(--color-ink-muted)] hover:bg-[var(--color-surface-1)] hover:text-[var(--color-ink)]',
+                        )
+                      }
+                    >
+                      {item.label}
+                    </NavLink>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          )}
         </div>
       </header>
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6">
-        <Routes>
-          <Route
-            path="/"
-            element={needsOnboarding ? <Navigate to="/setup" replace /> : <OverviewPage />}
-          />
-          <Route path="/setup" element={<OnboardingPage />} />
-          <Route path="/devices" element={<DevicesPage />} />
-          <Route path="/devices/:deviceId" element={<DevicesPage />} />
-          <Route path="/modules" element={<ModulesPage />} />
-          <Route path="/modules/:instanceId" element={<ModulesPage />} />
-          <Route path="/display-order" element={<DisplayOrderPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/diagnostics" element={<DiagnosticsPage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        {auth.isLoading ? (
+          <Spinner4 />
+        ) : locked ? (
+          <SignInPage configured={auth.data?.configured ?? false} />
+        ) : (
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/setup" element={<OnboardingPage />} />
+            <Route path="/devices" element={<DevicesPage />} />
+            <Route path="/devices/:deviceId" element={<DevicesPage />} />
+            <Route path="/modules" element={<ModulesPage />} />
+            <Route path="/modules/:instanceId" element={<ModulesPage />} />
+            <Route path="/display-order" element={<DisplayOrderPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/diagnostics" element={<DiagnosticsPage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        )}
       </main>
 
       <footer className="border-t border-[var(--color-line)] px-4 py-3 text-center text-xs text-[var(--color-ink-faint)] sm:px-6">
@@ -95,4 +109,12 @@ export function App() {
       </footer>
     </div>
   );
+}
+
+/** A first run has nothing configured yet; send it through setup, not empty cards. */
+function Home() {
+  const status = useStatus();
+  const needsOnboarding =
+    status.isSuccess && status.data.devices.length === 0 && status.data.modules.length === 0;
+  return needsOnboarding ? <Navigate to="/setup" replace /> : <OverviewPage />;
 }

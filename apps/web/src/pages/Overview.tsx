@@ -11,18 +11,12 @@ export function OverviewPage() {
 
   if (status.isLoading) return <Spinner4 />;
   if (status.isError) {
-    // A 401 means the server answered, so "cannot reach" would be a lie — and the
-    // way out is a password, which no amount of retrying supplies.
+    // A 401 means the server answered, so "cannot reach" would be a lie. The app
+    // shell swaps in the sign-in screen as soon as the auth state is re-read.
     const unauthorized = status.error instanceof ApiError && status.error.status === 401;
     return unauthorized ? (
-      <Banner tone="bad" title="This server requires a password">
-        No administrator password has been set, so the API refuses every request. Either bind the
-        server to 127.0.0.1, or set <code>GCA_AUTH_REQUIRED=false</code> when the port is published
-        on loopback only, or set a password:
-        <pre className="mt-2 overflow-x-auto rounded bg-[var(--color-surface-3)] p-2 text-xs">
-          curl -X POST {window.location.origin}/api/v1/auth/password -H &apos;content-type:
-          application/json&apos; -d &apos;{'{"password":"at-least-12-chars"}'}&apos;
-        </pre>
+      <Banner tone="warn" title="Your session ended">
+        Sign in again to continue.
       </Banner>
     ) : (
       <Banner tone="bad" title="Cannot reach the server">
@@ -36,8 +30,8 @@ export function OverviewPage() {
   return (
     <div className="grid gap-5">
       {data.server.authenticationRequired && (
-        <Banner tone="warn" title="This server is reachable from your network">
-          Authentication is required. Set an administrator password in Settings if you have not yet.
+        <Banner tone="info" title="This server is reachable from your network">
+          Signing in is required. Change the administrator password in Settings.
         </Banner>
       )}
 

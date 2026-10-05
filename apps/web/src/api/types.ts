@@ -106,6 +106,15 @@ export interface DiscoverResponse {
   }>;
 }
 
+export interface AuthState {
+  /** The server demands a signed-in session for its API. */
+  required: boolean;
+  /** An administrator password exists. */
+  configured: boolean;
+  /** This browser holds a valid session. */
+  authenticated: boolean;
+}
+
 export interface HealthResponse {
   status: string;
   version: string;

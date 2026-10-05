@@ -9,6 +9,7 @@ import { apiRequest } from './client.js';
 import type {
   ActionResultDto,
   AlbumPlan,
+  AuthState,
   BackupDto,
   CoreSettingsDto,
   DeviceDto,
@@ -25,6 +26,7 @@ import type {
 } from './types.js';
 
 export const queryKeys = {
+  auth: ['auth'] as const,
   health: ['health'] as const,
   status: ['status'] as const,
   settings: ['settings'] as const,
@@ -37,6 +39,68 @@ export const queryKeys = {
   instance: (id: string) => ['module-instances', id] as const,
   subnets: ['subnets'] as const,
 };
+
+export function useAuthState(): UseQueryResult<AuthState> {
+  return useQuery({
+    queryKey: queryKeys.auth,
+    queryFn: () => apiRequest<AuthState>('/auth/state'),
+  });
+}
+
+/**
+ * Anything cached before signing in was answered for an anonymous caller (health,
+ * for one, is trimmed), so a new session starts from an empty cache.
+ */
+function useStartSession() {
+  const queryClient = useQueryClient();
+  return () => queryClient.resetQueries();
+}
+
+export function useLogin(): UseMutationResult<unknown, Error, { password: string }> {
+  const startSession = useStartSession();
+  return useMutation({
+    mutationFn: ({ password }) => apiRequest('/auth/login', { method: 'POST', body: { password } }),
+    onSuccess: startSession,
+  });
+}
+
+/** Chooses the first password with the setup code, then signs straight in. */
+export function useBootstrapPassword(): UseMutationResult<
+  unknown,
+  Error,
+  { password: string; setupToken: string }
+> {
+  const startSession = useStartSession();
+  return useMutation({
+    mutationFn: async ({ password, setupToken }) => {
+      await apiRequest('/auth/password', { method: 'POST', body: { password, setupToken } });
+      return apiRequest('/auth/login', { method: 'POST', body: { password } });
+    },
+    onSuccess: startSession,
+  });
+}
+
+/** Changing the password ends every session, this one included. */
+export function useChangePassword(): UseMutationResult<
+  unknown,
+  Error,
+  { currentPassword: string; password: string }
+> {
+  const startSession = useStartSession();
+  return useMutation({
+    mutationFn: ({ currentPassword, password }) =>
+      apiRequest('/auth/password', { method: 'POST', body: { currentPassword, password } }),
+    onSuccess: startSession,
+  });
+}
+
+export function useLogout(): UseMutationResult<unknown, Error, void> {
+  const startSession = useStartSession();
+  return useMutation({
+    mutationFn: () => apiRequest('/auth/logout', { method: 'POST' }),
+    onSuccess: startSession,
+  });
+}
 
 export function useHealth(): UseQueryResult<HealthResponse> {
   return useQuery({
