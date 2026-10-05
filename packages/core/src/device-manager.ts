@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, join, relative, resolve, sep } from 'node:path';
 import {
   AppError,
   newId,
@@ -440,7 +440,7 @@ export class DeviceManager {
 
     const files: BackupRecord['manifest']['files'] = [];
     for (const file of content.files) {
-      await writeFile(join(directory, file.filename), file.data);
+      await writeFile(backupFilePath(directory, file.filename), file.data);
       files.push({
         filename: file.filename,
         originalPath: file.originalPath,
@@ -484,7 +484,7 @@ export class DeviceManager {
 
     for (const entry of backup.manifest.files) {
       try {
-        const data = await readFile(join(backup.directory, entry.filename));
+        const data = await readFile(backupFilePath(backup.directory, entry.filename));
         const digest = createHash('sha256').update(data).digest('hex');
         if (digest !== entry.sha256) {
           failed.push({
@@ -560,4 +560,24 @@ export function profileDisplayName(profile: DeviceProfileId): string {
     default:
       return 'Unknown firmware';
   }
+}
+
+/**
+ * Resolves a device-supplied filename inside a backup directory, or refuses.
+ *
+ * Adapters already strip traversal from firmware listings; this is the check at the
+ * point of the write, so a new adapter that forgets cannot escape the directory.
+ */
+export function backupFilePath(directory: string, filename: string): string {
+  const name = basename(filename.replace(/\\/g, '/'));
+  if (!name || name === '.' || name === '..' || name !== filename || name.includes('\0')) {
+    throw new AppError('VALIDATION_FAILED', `Refusing unsafe backup filename "${filename}".`);
+  }
+  const root = resolve(directory);
+  const target = resolve(root, name);
+  const rel = relative(root, target);
+  if (rel === '' || rel.startsWith('..') || rel.includes(sep)) {
+    throw new AppError('VALIDATION_FAILED', `Refusing unsafe backup filename "${filename}".`);
+  }
+  return target;
 }
