@@ -19,23 +19,26 @@ numbers immediately instead of waiting for the next status-line render.
 ## Environment variables
 
 Every value has a working default; an install that only wants loopback access needs
-none of them. Module settings live in the database and the UI, never here.
+none of them. Set them in a `.env` at the repo root, which `pnpm start`, the
+`pnpm bridge:*` scripts and `docker compose` all read, or in your service manager.
+Module settings live in the database and the UI, never here.
 
-| Variable                           | Default          | Purpose                                                                                                                                                                                                                |
-| ---------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GCA_HOST`                         | `127.0.0.1`      | Bind address. Anything other than loopback counts as exposed and requires an administrator password.                                                                                                                   |
-| `GCA_PORT`                         | `3210`           | HTTP port                                                                                                                                                                                                              |
-| `GCA_DATA_DIR`                     | platform default | Database, master key, bridge token and device backups                                                                                                                                                                  |
-| `GCA_LOG_LEVEL`                    | `info`           | Pino level                                                                                                                                                                                                             |
-| `GCA_MASTER_KEY_FILE`              | —                | Use a mounted secret instead of the generated key file. Required if secrets must survive a container rebuild that discards the data volume.                                                                            |
-| `GCA_BRIDGE_TOKEN`                 | —                | Pre-shared status-line bridge token, for when the server and the bridge cannot share a data directory (Docker). Minimum 16 characters.                                                                                 |
-| `GCA_BRIDGE_ALLOW_PRIVATE_SOURCES` | `false`          | Accept bridge posts from any private address, not only loopback. Needed when the server is containerised and the port is published.                                                                                    |
-| `GCA_AUTH_REQUIRED`                | see below        | Force the browser API's login on or off. Unset, it is on when bound beyond loopback or behind a configured proxy. Set `false` only for a container that binds `0.0.0.0` but publishes its port on the host's loopback. |
-| `GCA_PUBLIC_BASE_URL`              | —                | External URL when behind a reverse proxy. Its hostname is also accepted in the `Host` header.                                                                                                                          |
-| `GCA_TRUST_PROXY`                  | `false`          | Which proxy may set `X-Forwarded-*`: `true` means one on this machine (loopback); otherwise a comma-separated list of IPs or CIDRs.                                                                                    |
-| `GCA_ALLOWED_HOSTS`                | —                | Extra hostnames to answer to, comma-separated. Only needed for a public DNS name; see [Hostnames](#hostnames).                                                                                                         |
+| Variable                           | Default                     | Purpose                                                                                                                                                                                   |
+| ---------------------------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GCA_HOST`                         | `127.0.0.1`                 | Bind address (native). Anything other than loopback makes the server reachable from your network and requires an administrator password.                                                  |
+| `GCA_PORT`                         | `3210`                      | HTTP port                                                                                                                                                                                 |
+| `GCA_PUBLISH_ADDRESS`              | `127.0.0.1`                 | Docker only: the host address `compose.yaml` publishes the port on, passed to the server as `GCA_PUBLISHED_HOST`. Non-loopback turns the login on.                                        |
+| `GCA_DATA_DIR`                     | platform default            | Database, master key, bridge token and device backups                                                                                                                                     |
+| `GCA_LOG_LEVEL`                    | `info`                      | Pino level                                                                                                                                                                                |
+| `GCA_MASTER_KEY_FILE`              | —                           | Use a mounted secret instead of the generated key file. Required if secrets must survive a container rebuild that discards the data volume.                                               |
+| `GCA_BRIDGE_TOKEN`                 | —                           | Pre-shared status-line bridge token, for when the server and the bridge cannot share a data directory (Docker). Minimum 16 characters.                                                    |
+| `GCA_BRIDGE_ALLOW_PRIVATE_SOURCES` | `false` (`true` in compose) | Accept bridge posts from any private address, not only loopback. Needed when the server is containerised behind a published port.                                                         |
+| `GCA_AUTH_REQUIRED`                | follows the address         | Force the login on or off. Unset, it is on when the server is reachable beyond loopback (`GCA_HOST`, or `GCA_PUBLISHED_HOST` in a container) or behind a configured proxy. Rarely needed. |
+| `GCA_PUBLIC_BASE_URL`              | —                           | External URL when behind a reverse proxy. Its hostname is also accepted in the `Host` header.                                                                                             |
+| `GCA_TRUST_PROXY`                  | `false`                     | Which proxy may set `X-Forwarded-*`: `true` means one on this machine (loopback); otherwise a comma-separated list of IPs or CIDRs.                                                       |
+| `GCA_ALLOWED_HOSTS`                | —                           | Extra hostnames to answer to, comma-separated. Only needed for a public DNS name; see [Hostnames](#hostnames).                                                                            |
 
-[`.env.example`](../.env.example) is a copy-ready version of this table.
+[`.env.example`](../.env.example) is a commented, copy-ready version of this table.
 
 ## Native
 
@@ -54,7 +57,10 @@ Data lives in:
 ### macOS (launchd)
 
 Run under your own account so Claude detection works. Save as
-`~/Library/LaunchAgents/com.geekmagic.customapps.plist`:
+`~/Library/LaunchAgents/com.geekmagic.customapps.plist`, replacing
+`/usr/local/bin/node` with the output of `which node` (nvm, Homebrew and fnm all put
+it somewhere different) and `/Users/you/geekmagic-smalltv-custom-apps` with your
+checkout:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -66,9 +72,10 @@ Run under your own account so Claude detection works. Save as
   <key>ProgramArguments</key>
   <array>
     <string>/usr/local/bin/node</string>
-    <string>/Users/you/geekmagic-custom-apps/apps/server/dist/main.js</string>
+    <string>--env-file-if-exists=.env</string>
+    <string>/Users/you/geekmagic-smalltv-custom-apps/apps/server/dist/main.js</string>
   </array>
-  <key>WorkingDirectory</key><string>/Users/you/geekmagic-custom-apps</string>
+  <key>WorkingDirectory</key><string>/Users/you/geekmagic-smalltv-custom-apps</string>
   <key>EnvironmentVariables</key>
   <dict>
     <key>GCA_HOST</key><string>127.0.0.1</string>
@@ -88,11 +95,13 @@ Run under your own account so Claude detection works. Save as
 launchctl load ~/Library/LaunchAgents/com.geekmagic.customapps.plist
 ```
 
-`PATH` must include wherever `claude` lives, or detection will not find it.
+`PATH` must include wherever `claude` lives, or detection will not find it. Settings in
+the checkout's `.env` apply too, as with `pnpm start`; the values in the plist win.
 
 ### Linux (systemd --user)
 
-`~/.config/systemd/user/geekmagic-custom-apps.service`:
+`~/.config/systemd/user/geekmagic-custom-apps.service`, with the node path from
+`which node` and your checkout path:
 
 ```ini
 [Unit]
@@ -101,8 +110,8 @@ After=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=%h/geekmagic-custom-apps
-ExecStart=/usr/bin/node %h/geekmagic-custom-apps/apps/server/dist/main.js
+WorkingDirectory=%h/geekmagic-smalltv-custom-apps
+ExecStart=/usr/bin/node --env-file-if-exists=.env %h/geekmagic-smalltv-custom-apps/apps/server/dist/main.js
 Environment=GCA_HOST=127.0.0.1
 Environment=GCA_PORT=3210
 Restart=on-failure
@@ -157,14 +166,16 @@ Afterwards the route needs the current password instead. Changing it (Settings �
 Administrator password) signs out every browser. Sessions live in memory, so a server
 restart signs everyone out too.
 
-### Containers and `GCA_AUTH_REQUIRED=false`
+### Containers
 
 Inside a container the bind address is misleading: a published port cannot reach the
-container's own loopback, so it must bind `0.0.0.0` even when `-p 127.0.0.1:3210:3210`
-means nothing outside the host can connect. Say so with `GCA_AUTH_REQUIRED=false`.
+container's own loopback, so it always binds `0.0.0.0`. `compose.yaml` therefore tells
+the server where the port is really published (`GCA_PUBLISHED_HOST`, from
+`GCA_PUBLISH_ADDRESS`) and the login follows that. See [Docker](#docker).
 
-Do not use that setting anywhere else. With it, anyone who can reach the port controls
-the app, and the server logs an error at startup to say so.
+`GCA_AUTH_REQUIRED=false` still forces the login off. Avoid it: on a non-loopback
+address anyone who can reach the port controls the app, and the server logs an error at
+startup to say so.
 
 ### Hostnames
 
@@ -183,18 +194,80 @@ a proxy does: set `GCA_PUBLIC_BASE_URL`, or list names in `GCA_ALLOWED_HOSTS`.
 ## Docker
 
 ```bash
-docker compose --env-file .env -f docker/compose.yaml up -d --build
+docker compose up -d --build
 ```
 
-`--env-file .env` is not optional. Compose resolves a bare `.env` relative to the
-**compose file**, so from `docker/` your repo-root `.env` is invisible and every value
-in it arrives empty — `GCA_BRIDGE_TOKEN` included, which leaves the server generating
-its own secret and rejecting every post the host bridge makes. Nothing warns you;
-`docker compose --env-file .env -f docker/compose.yaml config` is how you check.
+That is the whole setup on Docker Desktop, OrbStack and Linux. Open
+<http://localhost:3210>.
+
+`compose.yaml` sits at the repo root, so Compose reads a `.env` next to it
+automatically — and it is optional. Every variable in [.env.example](../.env.example)
+is passed through. `docker compose config` shows what the container will actually get.
 
 The image builds the UI and server, then flattens the workspace with `pnpm deploy`,
 so the runtime carries no symlinks into a workspace root that does not exist there.
 It runs as `node`, includes a healthcheck, and uses tini for signal handling.
+
+### Reaching it from other devices
+
+The port is published on `127.0.0.1` by default: this machine only, no login. For your
+phone or other computers, put this in `.env`:
+
+```bash
+GCA_PUBLISH_ADDRESS=0.0.0.0
+```
+
+and run `docker compose up -d` again. That one setting moves the port and turns the
+login on — the compose file passes it to the server as `GCA_PUBLISHED_HOST`, which is
+how a container that always binds `0.0.0.0` knows where it is really reachable.
+`docker compose logs` shows the setup code for the first password.
+
+### Finding the display
+
+The container sees Docker's network rather than your LAN, so the **Devices** page's
+subnet scan finds nothing; type the display's IP instead (it shows it on screen).
+Outbound connections to the display work normally.
+
+On Linux, host networking lets the scan see your real subnet:
+
+```bash
+docker compose -f compose.yaml -f docker/compose.host-network.yaml up -d --build
+```
+
+The container then binds like a native install: `GCA_HOST` decides reach and login, as
+[above](#authentication-and-the-bind-address). Docker Desktop does not support this
+mode.
+
+### Claude Usage
+
+The container cannot see your Claude Code, so the status-line bridge runs on the host
+from this same checkout, sharing `GCA_BRIDGE_TOKEN` through `.env`. The full steps are in
+[CLAUDE-BRIDGE.md](CLAUDE-BRIDGE.md#docker). The container **must not** mount your home
+directory to obtain Claude credentials; nothing in this project reads them.
+
+### Keeping secrets across a volume rebuild
+
+The master key lives in the volume by default. To survive a rebuild that discards the
+volume, mount your own and uncomment the two lines in `compose.yaml`:
+
+```bash
+head -c 32 /dev/urandom | base64 > master.key && chmod 600 master.key
+```
+
+### Upgrading from `docker/compose.yaml`
+
+Earlier versions kept the compose file in `docker/`, which made the project name
+`docker`. Stop that stack once, then start the new one:
+
+```bash
+docker compose -p docker down
+docker compose up -d --build
+```
+
+The data volume keeps its old name, `docker_gca-data`, so the database, master key and
+backups carry over. A `.env` that set `GCA_HOST`, `GCA_AUTH_REQUIRED` or
+`GCA_BRIDGE_ALLOW_PRIVATE_SOURCES` for the old file can drop them: the defaults now
+cover the published-port case, and `GCA_PUBLISH_ADDRESS` replaces the first two.
 
 ### What a rebuild does and does not replace
 
@@ -211,42 +284,10 @@ feature is in the image, switched off, with nothing to indicate why.
 
 Two other things live outside the image and are never updated by rebuilding it:
 
-- **The run configuration** — the env file above, and anything else passed at `up`.
-- **Host-side components.** The status-line bridge and `gca-claude-bridge push` run on
-  the host, not in the container. Rebuilding the image does not rebuild them; run
+- **The run configuration** — `.env`, and anything else passed at `up`.
+- **Host-side components.** The status-line bridge and `pnpm bridge:push` run on the
+  host, not in the container. Rebuilding the image does not rebuild them; run
   `pnpm build` on the host and restart whatever supervises them.
-
-Requirements:
-
-- **Routing to the displays.** `network_mode: host` is simplest on Linux. On Docker
-  Desktop host networking behaves differently — publish `127.0.0.1:3210:3210` instead
-  and make sure the display subnet is reachable.
-- **A persistent volume** at `/data`.
-- **Your own master key** if secrets must survive a volume rebuild:
-
-  ```yaml
-  environment:
-    GCA_MASTER_KEY_FILE: /run/secrets/gca_master_key
-  volumes:
-    - ./master.key:/run/secrets/gca_master_key:ro
-  ```
-
-  ```bash
-  head -c 32 /dev/urandom | base64 > master.key && chmod 600 master.key
-  ```
-
-- **The bridge on the host**, not in the container, and pointed at the published port:
-
-  ```bash
-  gca-claude-bridge install --port 3210
-  ```
-
-The container **must not** mount your home directory to obtain Claude credentials.
-Nothing in this project reads them.
-
-With a published port on `127.0.0.1` and `GCA_AUTH_REQUIRED=false`, there is no
-login, as for a native loopback install. Otherwise the container binds `0.0.0.0`, so
-login is required: `docker logs` shows the setup code for the first password.
 
 Fonts are bundled with the renderer, so no system font packages are installed and
 output is byte-identical to a native run.
@@ -292,7 +333,8 @@ A migration takes a pre-migration copy automatically.
 
 ```bash
 git pull && pnpm install && pnpm build
-systemctl --user restart geekmagic-custom-apps
+systemctl --user restart geekmagic-custom-apps   # or relaunch however you run it
+docker compose up -d --build                      # Docker
 ```
 
 Migrations run at startup, in a transaction, after a file copy. Settings migrations
@@ -305,18 +347,51 @@ curl -s http://127.0.0.1:3210/api/v1/health | jq
 ```
 
 Reports version, uptime, which modules loaded, which were rejected and why, device
-count and bridge state. The Diagnostics page generates a shareable report and shows
+count and bridge state. On a server that requires login, an anonymous check gets only
+`{"status":"ok"}`. The Diagnostics page generates a shareable report and shows
 its full contents before download; hostnames, coordinates and credentials are
 excluded.
 
 ## Troubleshooting
 
-| Symptom                         | Check                                                      |
-| ------------------------------- | ---------------------------------------------------------- |
-| Display never updates           | Device page health; unchanged frames are skipped by design |
-| `DEVICE_ADDRESS_BLOCKED`        | The address is outside private ranges                      |
-| `DEVICE_PROFILE_UNKNOWN`        | Unrecognised firmware; export a probe report               |
-| PRO shows an old picture        | Open the Picture app once on the device                    |
-| Claude shows _setup required_   | Install the bridge on the host running Claude Code         |
-| Secrets fail after a move       | `master.key` did not come with the data directory          |
-| Container cannot reach displays | Host networking or subnet routing                          |
+### The display shows nothing, or an old picture
+
+Work down this list; each step rules out everything below it.
+
+1. **Devices → the display → Send test frame.** If it never arrives, the server cannot
+   reach the display: check the IP (it is on the display's own screen), that both are
+   on the same network, and in Docker that you typed the IP rather than scanning.
+2. **Display order.** At least one module view must be in the rotation, and the module
+   enabled on the Modules page.
+3. **SmallTV-PRO only:** picture mode shows the album as a slideshow. Run the album
+   takeover on the Devices page, then open the Picture app once on the device itself.
+   See [DEVICES.md](DEVICES.md#stock-pro).
+4. **Overview → problems.** Anything failing is listed there with its cause.
+
+Unchanged frames are never re-sent by design, so a static screen is not by itself a
+fault.
+
+### Error codes and other symptoms
+
+| Symptom                                  | Check                                                                          |
+| ---------------------------------------- | ------------------------------------------------------------------------------ |
+| `DEVICE_ADDRESS_BLOCKED`                 | The address is outside private ranges                                          |
+| `DEVICE_PROFILE_UNKNOWN`                 | Unrecognised firmware; export a report from the Diagnostics page               |
+| Claude shows _Bridge not installed_      | `pnpm bridge:install`, then `pnpm bridge:doctor`                               |
+| Claude shows _waiting_ forever           | Your client renders no status line (VS Code does not): use `pnpm bridge:push`  |
+| _does not answer to that hostname_ (421) | A public hostname: add it to `GCA_ALLOWED_HOSTS` (see [Hostnames](#hostnames)) |
+| Forgot the administrator password        | `pnpm auth:reset` (below)                                                      |
+| Secrets fail after a move                | `master.key` did not come with the data directory                              |
+| `localhost:3210` refused in Docker       | `docker compose ps` and `docker compose logs`; is another stack on the port?   |
+
+### Forgotten password
+
+```bash
+pnpm auth:reset
+# Docker:
+docker compose exec geekmagic-custom-apps node dist/cli/reset-password.js
+```
+
+It clears the password — nothing else — and prints a new setup code. Restart the server
+to end existing sessions, then open the UI and enter the code to choose a new password.
+Anyone who can run it already controls the data directory, so it asks for nothing.

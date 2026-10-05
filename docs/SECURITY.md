@@ -1,5 +1,9 @@
 # Security model
 
+> **Reporting a vulnerability:** use
+> [Report a vulnerability](https://github.com/ssafayet/geekmagic-smalltv-custom-apps/security/advisories/new)
+> on the repository's Security tab, not a public issue. You will get a reply there.
+
 Local-first by default: the server binds to `127.0.0.1`, needs no account, and sends
 nothing anywhere except the providers a module declares.
 
@@ -150,7 +154,3 @@ out of scope: it would need a trust policy and worker isolation, which is a diff
 problem from the one this release solves.
 
 The lockfile is committed and CI runs `pnpm audit`.
-
-## Reporting
-
-Open a private security advisory on the repository rather than a public issue.

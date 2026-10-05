@@ -19,10 +19,10 @@ on screen with the badge, rather than blanking or falling back to zero.
 Subscription usage and API usage are **different products**, and this module keeps them
 clearly separated rather than blending them into one number.
 
-| Source                     | What you need                                 | What you see                                      |
-| -------------------------- | --------------------------------------------- | ------------------------------------------------- |
-| Local Claude Code          | An existing login plus the status-line bridge | 5-hour and 7-day used percentage, and reset times |
-| Anthropic organization API | A credential authorized for usage reporting   | Tokens, requests and cost over a window you pick  |
+| Source                     | What you need                                                                                  | What you see                                      |
+| -------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| Local Claude Code          | A signed-in Claude Code on the same machine; the status-line bridge for live updates or Docker | 5-hour and 7-day used percentage, and reset times |
+| Anthropic organization API | A credential authorized for usage reporting                                                    | Tokens, requests and cost over a window you pick  |
 
 The **Source** setting is `Auto`, `Local Claude Code`, or `Organization usage API`.
 `Auto` prefers the local bridge and can optionally fall back to the API credential when
@@ -37,11 +37,13 @@ on the settings page to confirm before relying on it.
 
 ### The status-line bridge
 
-Subscription rate limits reach the server through a small host-side bridge, because
-Claude Code runs as you and a service does not. Install it with:
+When the server runs as you, it reads the limits from the Claude Code CLI every few
+minutes with no setup at all. The status-line bridge makes them live — forwarded on
+every request — and is the only route when the server runs in Docker or under another
+account, since those cannot see your Claude Code. Install it with:
 
 ```bash
-pnpm bridge:install     # or, from a built install: gca-claude-bridge install
+pnpm bridge:install
 ```
 
 Its guarantees in brief — your existing status line keeps working and is restored

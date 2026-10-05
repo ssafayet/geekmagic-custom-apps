@@ -20,7 +20,7 @@ The module reads that as a **fallback**, whenever the bridge inbox is empty:
 | ----------------------------- | ----- | ------------------------------ | ---------------------------- |
 | Bridge (status line)          | Free  | No — waits for the next render | Yes, bridge runs on the host |
 | `claude -p "/usage"` fallback | Free  | Yes                            | No — needs the CLI locally   |
-| `gca-claude-bridge push`      | Free  | Yes                            | Yes — reads the CLI, posts   |
+| `pnpm bridge:push`            | Free  | Yes                            | Yes — reads the CLI, posts   |
 
 The bridge stays the primary source: it needs no process spawn and no extra network
 call. The fallback exists because the inbox is in memory, so a restart empties it, and
@@ -39,16 +39,38 @@ error, and the spawn is limited to one per five minutes.
 
 ## Install
 
+Build first — the status line runs the compiled bridge — then install from the
+checkout:
+
 ```bash
+pnpm build
 pnpm bridge:install
-# or, from a built install:
-gca-claude-bridge install
 ```
 
-Flags: `--data-dir`, `--settings`, `--port`, `--endpoint`, `--token`.
+Every bridge command is a script in the root `package.json`, and each reads `.env`
+from the checkout like `pnpm start` does:
 
-Available without the web UI on purpose: in Docker the server runs in a container
-while Claude Code runs on the host, so the bridge has to be installable there.
+| Command                 | Does                                               |
+| ----------------------- | -------------------------------------------------- |
+| `pnpm bridge:install`   | Add the bridge to `~/.claude/settings.json`        |
+| `pnpm bridge:doctor`    | Explain why usage is not arriving                  |
+| `pnpm bridge:status`    | Print install state as JSON; exit 0 when installed |
+| `pnpm bridge:push`      | Read usage from the local CLI and post it now      |
+| `pnpm bridge:uninstall` | Restore the previous status line                   |
+| `pnpm bridge --help`    | Every command and flag                             |
+
+Flags go straight after the script: `pnpm bridge:install --port 3211`. Install takes
+`--data-dir`, `--settings`, `--port`, `--endpoint` and `--token`.
+
+The command written into Claude Code's settings is
+`node <checkout>/tools/claude-statusline-bridge/dist/cli.js run --config …`, an
+absolute path to the build. Claude Code runs it from whatever project is open, so it
+must not depend on anything resolving from the current directory. Moving or deleting
+the checkout breaks it; re-run `pnpm bridge:install` from the new location.
+
+The web UI's **Install status-line bridge** action does the same thing in one click.
+The command line exists because in Docker the server runs in a container while Claude
+Code runs on the host, so the bridge has to be installable there.
 
 Install is idempotent: running it again rewrites the same status line, reuses the
 existing token, and will not chain the bridge to its own previous invocation, so it
@@ -60,53 +82,43 @@ successfully says nothing about whether usage will actually arrive.
 ### When nothing arrives
 
 ```bash
-gca-claude-bridge doctor
+pnpm bridge:doctor
 ```
 
 `run` cannot report anything — it swallows every failure so a broken bridge is never
 the reason a Claude Code session shows an error. `doctor` is where the diagnosis
 lives. It names the actual fault:
 
-| Output                          | Cause                                                                                        |
-| ------------------------------- | -------------------------------------------------------------------------------------------- |
-| `the server rejects this token` | The bridge and the server hold different secrets. Re-run install with `--token`.             |
-| `refuses this source address`   | A published container port arrives through NAT. Set `GCA_BRIDGE_ALLOW_PRIVATE_SOURCES=true`. |
-| `Cannot reach`                  | Server down, or the wrong port in `--endpoint`.                                              |
-| `No payload has arrived yet`    | Everything is wired up; Claude Code has not rendered since.                                  |
+| Output                          | Cause                                                                                                       |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `the server rejects this token` | The bridge and the server hold different secrets. Put the same `GCA_BRIDGE_TOKEN` in `.env` and reinstall.  |
+| `refuses this source address`   | A published container port arrives through NAT. Set `GCA_BRIDGE_ALLOW_PRIVATE_SOURCES=true` (compose does). |
+| `Cannot reach`                  | Server down, or the wrong port in `--port` / `--endpoint`.                                                  |
+| `No payload has arrived yet`    | Everything is wired up; Claude Code has not rendered since.                                                 |
 
 If that last row never changes, the client you use is not rendering a status line at
 all — the VS Code extension does not — and no amount of reinstalling will help, because
 nothing about the bridge is broken. Use `push` instead.
 
-### Automating it — same machine as the server
+### Same machine as the server
 
 The server and the bridge both derive the token from the data directory, so they
-agree without being told anything:
-
-```bash
-pnpm bridge:install        # from a checkout
-gca-claude-bridge install  # from a built install
-gca-claude-bridge status   # exit 0 when installed; for a health check
-```
-
-To have it survive a fresh machine, run it after the server unit starts — a
-`systemd` drop-in, a launchd `RunAtLoad` agent, or one line in your dotfiles setup.
-The web UI's **Install status-line bridge** action does the same thing in one click.
+agree without being told anything. `pnpm bridge:install` once is the whole setup.
+`pnpm bridge:status` exits 0 when installed, which suits a health check.
 
 ### Pushing usage on a timer
 
 ```bash
-pnpm bridge:push                          # one shot, from a checkout
-gca-claude-bridge push                    # one shot, from a built install
-gca-claude-bridge push --watch            # stay resident, every 60s
-gca-claude-bridge push --watch --interval 120
+pnpm bridge:push                           # one shot
+pnpm bridge:push --watch                   # stay resident, every 60s
+pnpm bridge:push --watch --interval 120
 ```
 
 `push` reads usage with the same code path as the CLI fallback and posts it as a
 status-line payload, so the server keeps one parser and cannot tell the difference. It
-needs the same token as `install` — it reads the same token file, so on a single
-machine there is nothing to configure, and for a container pass `--token-file` or
-`--endpoint` the same way.
+reads the same token file as `install`, so on a single machine there is nothing to
+configure. `--token` (or `GCA_BRIDGE_TOKEN`) saves a token to that file first, and
+`--token-file` reads another one instead.
 
 One-shot exits non-zero on failure and names the cause, so it suits `cron` or a launchd
 timer. `--watch` keeps going across failures instead, on the assumption the server is
@@ -118,7 +130,8 @@ supervisor the result still pushes — once per respawn — so it looks like it 
 while actually crash-looping and ignoring `--interval`. If the agent's stderr shows
 `Detected unsettled top-level await`, that is what is happening.
 
-A launchd agent at `~/Library/LaunchAgents/dev.gca.claude-push.plist`:
+A launchd agent at `~/Library/LaunchAgents/dev.gca.claude-push.plist` — replace the
+node path with the output of `which node`, and the checkout path with yours:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -126,7 +139,8 @@ A launchd agent at `~/Library/LaunchAgents/dev.gca.claude-push.plist`:
   <key>Label</key><string>dev.gca.claude-push</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/usr/local/bin/gca-claude-bridge</string>
+    <string>/usr/local/bin/node</string>
+    <string>/Users/you/geekmagic-smalltv-custom-apps/tools/claude-statusline-bridge/dist/cli.js</string>
     <string>push</string>
     <string>--watch</string>
   </array>
@@ -138,10 +152,9 @@ A launchd agent at `~/Library/LaunchAgents/dev.gca.claude-push.plist`:
 </dict></plist>
 ```
 
-From a checkout there is no `gca-claude-bridge` on the PATH, so point the agent at the
-built entry point directly — `node <checkout>/tools/claude-statusline-bridge/dist/cli.js
-push --watch`. Use `dist`, not the TypeScript source: a launchd agent should not depend
-on `tsx` resolving.
+launchd does not read `.env`. If the server runs in Docker, run `pnpm bridge:push
+--token "$GCA_BRIDGE_TOKEN"` once first: the token is saved to the token file the agent
+then reads.
 
 ```bash
 launchctl load ~/Library/LaunchAgents/dev.gca.claude-push.plist
@@ -151,64 +164,50 @@ Nothing is pushed that the status line would not have sent: two percentages and 
 reset timestamps. There is no session id, model, path or cost in a pushed payload,
 because none of that exists outside a render.
 
-### Automating it — server in Docker
+### Docker
 
-Two things break by default, and both have to be handled.
+The container cannot see your Claude Code, so the bridge runs on the host, from the
+same checkout `compose.yaml` lives in. Two things have to line up.
 
-**The token.** The container cannot reach `~/.claude`, and the host bridge cannot read
-the token file inside the volume, so the two sides generate different secrets and
-every post is rejected. Decide the token up front and give it to both.
+**The token.** The host bridge cannot read the token file inside the volume, so the
+two sides would generate different secrets and every post would be rejected. Decide
+one up front and give it to both — `.env` does that, since `docker compose` and the
+`pnpm bridge:*` scripts all read it.
 
-**The source address.** The endpoint is loopback-only. With `network_mode: host` that
-is satisfied naturally. With a published port it is not: Docker's NAT rewrites the
-source, so a post from the host arrives from the bridge gateway —
-`Rejected non-local bridge request`, HTTP 401. `GCA_BRIDGE_ALLOW_PRIVATE_SOURCES=true`
-widens the check to any private address.
+**The source address.** The endpoint is loopback-only by default, and Docker's NAT
+rewrites the source of a post from the host. `compose.yaml` sets
+`GCA_BRIDGE_ALLOW_PRIVATE_SOURCES=true` for that reason; the host-network override
+does not need it.
 
 ```bash
-# 1. Generate once and keep it (a password manager, or .env with 0600).
-export GCA_BRIDGE_TOKEN=$(openssl rand -hex 32)
+# 1. One shared secret, in .env next to compose.yaml.
+cp .env.example .env
+echo "GCA_BRIDGE_TOKEN=$(openssl rand -hex 32)" >> .env
 
-# 2. The server takes it from the environment instead of its token file.
-#    --env-file is required: compose reads .env relative to the compose file, so
-#    without it a repo-root .env is silently ignored and the token arrives empty.
-docker compose --env-file .env -f docker/compose.yaml up -d
+# 2. The container takes it from .env.
+docker compose up -d --build
 
-# 3. The host bridge is told the same token and the published endpoint.
-pnpm bridge:install -- \
-  --endpoint http://127.0.0.1:3210/internal/claude/statusline \
-  --token "$GCA_BRIDGE_TOKEN"
+# 3. The host bridge takes it from the same .env.
+pnpm install && pnpm build
+pnpm bridge:install
 ```
 
-`--token` also reads `GCA_BRIDGE_TOKEN` from the environment, so step 3 can drop the
-flag when the variable is exported. The token must be at least 16 characters; a
-shorter one fails at startup rather than being accepted weakly.
+The token must be at least 16 characters; a shorter one fails at startup rather than
+being accepted weakly. Changed it later? Restart the container and re-run step 3.
 
-| Networking                     | Needs `GCA_BRIDGE_ALLOW_PRIVATE_SOURCES` | Verified |
-| ------------------------------ | ---------------------------------------- | -------- |
-| `network_mode: host` (default) | No                                       | Yes      |
-| Published port                 | Yes                                      | Yes      |
+| Networking                               | `GCA_BRIDGE_ALLOW_PRIVATE_SOURCES` | Verified |
+| ---------------------------------------- | ---------------------------------- | -------- |
+| Published port (`compose.yaml`, default) | `true`, set by compose             | Yes      |
+| `network_mode: host` (Linux override)    | Not needed                         | Yes      |
 
-Publish the port on loopback only — `127.0.0.1:3210:3210`, as the compose file does.
-The allowance widens which source addresses may connect, so the host-side binding is
-what keeps the LAN out. The bearer token remains the actual authentication either way:
-a wrong token is still rejected with the allowance set.
-
-The bridge binary itself has to exist on the host. `@gca/claude-statusline-bridge` is
-not published to npm, so use `pnpm bridge:install` from the checkout you already have
-(the one holding `docker/compose.yaml`). It runs from source through `tsx` and needs
-`pnpm install`, not a full build.
+Keep the port published on `127.0.0.1` unless you want LAN access to the UI. The
+allowance widens which source addresses may connect; the bearer token remains the
+actual authentication either way, and a wrong token is still rejected.
 
 Note that the CLI fallback does **not** work from a container: `claude` is not
-installed there and `~/.claude.json` is not mounted. In Docker the bridge is the
-only local source, which is the case the pending-snapshot behaviour was written for.
-
-Other commands:
-
-```bash
-gca-claude-bridge status      # JSON install state; exit 0 if installed
-gca-claude-bridge uninstall   # restore the previous status line
-```
+installed there and `~/.claude.json` is not mounted. In Docker the bridge and `push`
+are the only local sources, which is the case the pending-snapshot behaviour was
+written for.
 
 ## What install does
 
@@ -345,7 +344,7 @@ call is ever made to test a key.**
 
 | Symptom                              | Cause                                                                                                        |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
-| _Bridge not installed_               | Run `gca-claude-bridge install`                                                                              |
+| _Bridge not installed_               | Run `pnpm bridge:install`                                                                                    |
 | _Waiting for Claude_                 | Normal. Usage appears after Claude Code's next request.                                                      |
 | Panel shows `—` for a window         | Claude Code did not report it; correct, not a bug.                                                           |
 | Bridge installed but nothing arrives | Check the server port matches `--port`, and that the token file is readable by the user Claude Code runs as. |
@@ -355,8 +354,8 @@ call is ever made to test a key.**
 Check state without the UI:
 
 ```bash
-gca-claude-bridge status
-gca-claude-bridge doctor
+pnpm bridge:status
+pnpm bridge:doctor
 curl -s http://127.0.0.1:3210/api/v1/health | jq .bridge   # loopback installs only
 ```
 

@@ -1,0 +1,45 @@
+name: Device report
+description: Share how an untested display behaves, so its adapter can be confirmed or fixed.
+labels: [device-report]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you — these are the most useful reports this project gets. Open the
+        **Diagnostics** page, check the report it shows, and paste or attach it below.
+        It excludes hostnames, coordinates and credentials.
+  - type: input
+    id: model
+    attributes:
+      label: Display model
+      placeholder: SmallTV Ultra
+    validations:
+      required: true
+  - type: input
+    id: firmware
+    attributes:
+      label: Firmware version (from the display's web page)
+    validations:
+      required: true
+  - type: dropdown
+    id: result
+    attributes:
+      label: What happened?
+      options:
+        - It works
+        - Detected, but frames do not appear
+        - Not detected (unknown profile)
+        - Something else
+    validations:
+      required: true
+  - type: textarea
+    id: report
+    attributes:
+      label: Diagnostics report
+      render: json
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else you noticed

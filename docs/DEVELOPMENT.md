@@ -39,6 +39,11 @@ pnpm dev:web   # Vite on :5173, proxies /api to :3210
 output is current and emit nothing. If a build looks impossibly fast and wrong, clean
 first.
 
+`pnpm dev` does not read `.env`; export variables in the shell instead. The bridge
+always installs the built `tools/claude-statusline-bridge/dist/cli.js`, even from a dev
+server, so run `pnpm build` once before installing it. After changing bridge code,
+rebuild — Claude Code runs whatever is in `dist`.
+
 ## Working without hardware
 
 **Rendering.** Output is deterministic — fonts are bundled and loaded explicitly rather
