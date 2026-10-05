@@ -73,6 +73,11 @@ test frame, and enabling modules.
 That is the whole setup. The server binds to `127.0.0.1`, needs no account, and stores
 everything locally.
 
+To use it from your phone or another computer, start it with `GCA_HOST=0.0.0.0`. The
+log prints a one-time setup code; open the UI from the other device, enter the code,
+and choose a password. See
+[DEPLOYMENT.md](docs/DEPLOYMENT.md#using-it-from-your-phone-or-another-computer-on-the-lan).
+
 > On a SmallTV-PRO, picture mode is a slideshow, so a deterministic dashboard requires
 > the managed image to be the only picture in the album. The UI shows you the exact list
 > of pictures first, backs every one up with a checksum, and deletes nothing until the
@@ -121,7 +126,9 @@ Both are documented in [docs/BUILT-IN-MODULES.md](docs/BUILT-IN-MODULES.md).
 
 ## Security and privacy
 
-Loopback by default; binding anywhere else requires an administrator password. Device
+Loopback by default; binding anywhere else requires an administrator password, and the
+first one can only be set with a code from the server log. The server answers only to
+local hostnames, which blocks DNS-rebinding attacks from web pages you visit. Device
 requests are treated as an SSRF boundary. Secrets are encrypted at rest under a master
 key kept outside the database, and a stored secret is never returned to the browser. No
 analytics, no telemetry, no cloud account.

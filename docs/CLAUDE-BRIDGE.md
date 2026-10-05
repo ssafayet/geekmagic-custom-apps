@@ -356,5 +356,9 @@ Check state without the UI:
 
 ```bash
 gca-claude-bridge status
-curl -s http://127.0.0.1:3210/api/v1/health | jq .bridge
+gca-claude-bridge doctor
+curl -s http://127.0.0.1:3210/api/v1/health | jq .bridge   # loopback installs only
 ```
+
+On a server that requires login, an anonymous health check reports only
+`{"status":"ok"}`; `doctor` authenticates with the bridge token and still works.

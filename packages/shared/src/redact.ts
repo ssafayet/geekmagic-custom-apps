@@ -35,7 +35,9 @@ export function lastFour(secret: string): string {
 
 /**
  * Coordinates are sensitive settings. Logs get a coarse value only; the precise value
- * stays in the encrypted-at-rest database and in outbound provider requests.
+ * stays in the module's settings row and in outbound provider requests. Settings are
+ * stored as plain JSON — only fields declared as secrets are encrypted — so the
+ * database file itself must be treated as revealing the configured location.
  */
 export function roundCoordinateForLog(value: number): number {
   return Math.round(value * 10) / 10;
