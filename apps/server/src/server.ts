@@ -7,6 +7,7 @@ import fastifyStatic from '@fastify/static';
 import Fastify from 'fastify';
 import type { AppContext } from './context.js';
 import { AuthService, registerAuth } from './auth.js';
+import { registerRequestGuard } from './request-guard.js';
 import { apiNotFound, registerErrorHandler } from './errors.js';
 import {
   registerCoreRoutes,
@@ -22,6 +23,23 @@ import type { AppServer } from './fastify-types.js';
 
 const API_BODY_LIMIT = 1024 * 1024;
 
+/**
+ * The UI is a same-origin bundle: scripts, styles, fonts and preview images all come
+ * from this server. Inline styles stay allowed because React and Tailwind set them.
+ */
+const CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "font-src 'self' data:",
+  "connect-src 'self'",
+  "object-src 'none'",
+  "base-uri 'none'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+].join('; ');
+
 export async function buildServer(ctx: AppContext): Promise<AppServer> {
   const app = Fastify({
     loggerInstance: ctx.logger,
@@ -34,6 +52,13 @@ export async function buildServer(ctx: AppContext): Promise<AppServer> {
   });
 
   registerErrorHandler(app);
+  // Before anything else, so a rebound hostname never reaches a route or the UI.
+  registerRequestGuard(app, ctx.config);
+
+  // JSON is the only body the API accepts. A text/plain body is what a cross-site
+  // form or no-cors fetch can send without a preflight, so refusing it (415) closes
+  // that door independently of the Origin check.
+  app.removeContentTypeParser('text/plain');
 
   await app.register(cookie, {});
   await app.register(rateLimit, {
@@ -44,10 +69,16 @@ export async function buildServer(ctx: AppContext): Promise<AppServer> {
 
   // Same-origin only: the UI is served by this process, so there is no legitimate
   // cross-origin caller and no CORS plugin is registered on purpose.
-  app.addHook('onSend', async (_request, reply, payload) => {
+  app.addHook('onSend', async (request, reply, payload) => {
     reply.header('x-content-type-options', 'nosniff');
     reply.header('referrer-policy', 'no-referrer');
     reply.header('x-frame-options', 'DENY');
+    reply.header('content-security-policy', CONTENT_SECURITY_POLICY);
+    reply.header('cross-origin-opener-policy', 'same-origin');
+    // API responses carry settings and device state; nothing should cache them.
+    if (isApiPath(request.url) && !reply.hasHeader('cache-control')) {
+      reply.header('cache-control', 'no-store');
+    }
     return payload;
   });
 

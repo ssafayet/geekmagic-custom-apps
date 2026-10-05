@@ -9,14 +9,19 @@ export function registerCoreRoutes(
   ctx: AppContext,
   services: { devices: DeviceService },
 ): void {
-  app.get('/api/v1/health', async () => ({
-    status: 'ok',
-    version: ctx.config.version,
-    startedAt: ctx.startedAt,
-    modules: { loaded: ctx.registry.report.loaded, rejected: ctx.registry.report.rejected },
-    devices: ctx.devices.list().length,
-    bridge: ctx.bridgeInbox.describe(),
-  }));
+  // Public so container healthchecks work. The details are for the signed-in UI; a
+  // caller without a session on a login-enforced server learns only that it is up.
+  app.get('/api/v1/health', { config: { public: true } }, async (request) => {
+    if (!app.auth.isAuthorized(request)) return { status: 'ok' };
+    return {
+      status: 'ok',
+      version: ctx.config.version,
+      startedAt: ctx.startedAt,
+      modules: { loaded: ctx.registry.report.loaded, rejected: ctx.registry.report.rejected },
+      devices: ctx.devices.list().length,
+      bridge: ctx.bridgeInbox.describe(),
+    };
+  });
 
   app.get('/api/v1/status', async (): Promise<StatusSummaryDto> => {
     const deviceDtos = await services.devices.listDtos();

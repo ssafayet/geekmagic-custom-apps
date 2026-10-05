@@ -1,3 +1,4 @@
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createTestApp, jsonBody, type TestApp } from './helpers.js';
 
@@ -9,10 +10,34 @@ afterEach(async () => {
 });
 
 /** Binding beyond loopback is what turns authentication on, unless overridden. */
-async function exposedApp(): Promise<TestApp> {
+async function exposedApp(overrides: Partial<TestApp['ctx']['config']> = {}): Promise<TestApp> {
   return createTestApp({
-    configOverrides: { host: '0.0.0.0', isExposed: true, authRequired: true },
+    configOverrides: { host: '0.0.0.0', isExposed: true, authRequired: true, ...overrides },
   });
+}
+
+const PASSWORD = 'a-long-enough-password';
+
+/** Sets the first password the way an operator does: with the code from the log. */
+async function bootstrap(target: TestApp, password = PASSWORD) {
+  return target.app.inject({
+    method: 'POST',
+    url: '/api/v1/auth/password',
+    payload: { password, setupToken: target.app.auth.setupToken },
+  });
+}
+
+async function signIn(target: TestApp): Promise<{ cookie: string; csrf: string }> {
+  await bootstrap(target);
+  const login = await target.app.inject({
+    method: 'POST',
+    url: '/api/v1/auth/login',
+    payload: { password: PASSWORD },
+  });
+  const cookies = login.cookies as Array<{ name: string; value: string }>;
+  const session = cookies.find((cookie) => cookie.name === 'gca_session')?.value ?? '';
+  const csrf = cookies.find((cookie) => cookie.name === 'gca_csrf')?.value ?? '';
+  return { cookie: `gca_session=${session}; gca_csrf=${csrf}`, csrf };
 }
 
 describe('loopback deployment', () => {
@@ -52,11 +77,7 @@ describe('exposed deployment', () => {
     harness = await exposedApp();
 
     // Without this bootstrap the deployment could never authenticate itself.
-    const first = await harness.app.inject({
-      method: 'POST',
-      url: '/api/v1/auth/password',
-      payload: { password: 'a-long-enough-password' },
-    });
+    const first = await bootstrap(harness);
     expect(first.statusCode).toBe(200);
 
     // A second change now needs the current password.
@@ -70,21 +91,13 @@ describe('exposed deployment', () => {
 
   it('rejects a short password', async () => {
     harness = await exposedApp();
-    const response = await harness.app.inject({
-      method: 'POST',
-      url: '/api/v1/auth/password',
-      payload: { password: 'short' },
-    });
+    const response = await bootstrap(harness, 'short');
     expect(response.statusCode).toBe(400);
   });
 
   it('issues a session and CSRF token on login, and enforces CSRF on writes', async () => {
     harness = await exposedApp();
-    await harness.app.inject({
-      method: 'POST',
-      url: '/api/v1/auth/password',
-      payload: { password: 'a-long-enough-password' },
-    });
+    await bootstrap(harness);
 
     const login = await harness.app.inject({
       method: 'POST',
@@ -135,11 +148,7 @@ describe('exposed deployment', () => {
 
   it('rejects a wrong password', async () => {
     harness = await exposedApp();
-    await harness.app.inject({
-      method: 'POST',
-      url: '/api/v1/auth/password',
-      payload: { password: 'a-long-enough-password' },
-    });
+    await bootstrap(harness);
 
     const response = await harness.app.inject({
       method: 'POST',
@@ -163,6 +172,180 @@ describe('exposed deployment', () => {
 
     // No session cookie, no CSRF header, yet accepted: it has its own controls.
     expect(response.statusCode).toBe(200);
+  });
+});
+
+describe('route matching', () => {
+  // The router decodes percent-escapes before matching, so any check on the raw URL
+  // is bypassed by spelling the same path differently. These reached handlers once.
+  it.each([
+    '/api/v1/devices',
+    '/%61pi/v1/devices',
+    '/api/v1/%64evices',
+    '/api/v1/devices/',
+    '/./api/v1/devices',
+    '/api/v1/health/../devices',
+  ])('refuses %s without a session', async (url) => {
+    harness ??= await exposedApp();
+    await bootstrap(harness);
+
+    const response = await harness.app.inject({ method: 'GET', url });
+
+    expect(response.statusCode).toBe(401);
+  });
+
+  it('refuses an encoded write without a session', async () => {
+    harness = await exposedApp();
+    await bootstrap(harness);
+
+    const response = await harness.app.inject({
+      method: 'PATCH',
+      url: '/%61pi/v1/settings',
+      payload: { discoveryEnabled: false },
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(harness.ctx.coreSettings().discoveryEnabled).toBe(true);
+  });
+
+  it('never answers an unmatched spelling with API data', async () => {
+    harness = await exposedApp();
+    await bootstrap(harness);
+
+    for (const url of ['/API/v1/devices', '/api%2Fv1/devices', '/%2561pi/v1/devices']) {
+      const response = await harness.app.inject({ method: 'GET', url });
+      expect(response.body).not.toBe('[]');
+    }
+  });
+});
+
+describe('first password', () => {
+  it('needs the setup code on an exposed server', async () => {
+    harness = await exposedApp();
+
+    const missing = await harness.app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/password',
+      payload: { password: PASSWORD },
+    });
+    const wrong = await harness.app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/password',
+      payload: { password: PASSWORD, setupToken: 'not-the-setup-code' },
+    });
+
+    expect(missing.statusCode).toBe(401);
+    expect(wrong.statusCode).toBe(401);
+    expect(harness.app.auth.configured).toBe(false);
+  });
+
+  it('writes the code owner-only and removes it once used', async () => {
+    harness = await exposedApp();
+    const path = harness.app.auth.setupTokenPath;
+    expect(readFileSync(path, 'utf8')).toBe(harness.app.auth.setupToken);
+    if (process.platform !== 'win32') expect(statSync(path).mode & 0o077).toBe(0);
+
+    await bootstrap(harness);
+
+    expect(existsSync(path)).toBe(false);
+    expect(harness.app.auth.setupToken).toBeNull();
+  });
+
+  // Loopback needs no login, so a code would guard nothing the caller lacks.
+  it('is not asked for when login is not enforced', async () => {
+    harness = await createTestApp();
+
+    expect(harness.app.auth.setupToken).toBeNull();
+    const response = await harness.app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/password',
+      payload: { password: PASSWORD },
+    });
+    expect(response.statusCode).toBe(200);
+  });
+});
+
+describe('sessions', () => {
+  it('reports whether this browser is signed in', async () => {
+    harness = await exposedApp();
+    const { cookie } = await signIn(harness);
+
+    const anonymous = await harness.app.inject({ method: 'GET', url: '/api/v1/auth/state' });
+    const signedIn = await harness.app.inject({
+      method: 'GET',
+      url: '/api/v1/auth/state',
+      headers: { cookie },
+    });
+
+    expect(jsonBody(anonymous)).toMatchObject({ required: true, authenticated: false });
+    expect(jsonBody(signedIn)).toMatchObject({ required: true, authenticated: true });
+  });
+
+  // A browser discards a Secure cookie that arrives over plain HTTP, which is how
+  // a LAN address is normally reached; marking it there makes signing in impossible.
+  it('marks cookies Secure only when the request arrived over HTTPS', async () => {
+    harness = await exposedApp({ trustProxy: ['loopback'] });
+    await bootstrap(harness);
+
+    const plain = await harness.app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      payload: { password: PASSWORD },
+    });
+    const proxied = await harness.app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      headers: { 'x-forwarded-proto': 'https' },
+      payload: { password: PASSWORD },
+    });
+
+    const secureOf = (response: typeof plain) =>
+      (response.cookies as Array<{ name: string; secure?: boolean }>).find(
+        (cookie) => cookie.name === 'gca_session',
+      )?.secure;
+    expect(secureOf(plain)).not.toBe(true);
+    expect(secureOf(proxied)).toBe(true);
+  });
+
+  it('rate-limits password attempts per address', async () => {
+    harness = await exposedApp();
+    await bootstrap(harness);
+
+    const statuses: number[] = [];
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      const response = await harness.app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/login',
+        payload: { password: 'wrong-password-entirely' },
+      });
+      statuses.push(response.statusCode);
+    }
+
+    expect(statuses.slice(0, 10).every((status) => status === 401)).toBe(true);
+    expect(statuses.slice(10)).toEqual([429, 429]);
+  });
+});
+
+describe('health', () => {
+  it('tells an anonymous caller only that the server is up', async () => {
+    harness = await exposedApp();
+    const { cookie } = await signIn(harness);
+
+    const anonymous = await harness.app.inject({ method: 'GET', url: '/api/v1/health' });
+    const signedIn = await harness.app.inject({
+      method: 'GET',
+      url: '/api/v1/health',
+      headers: { cookie },
+    });
+
+    expect(jsonBody(anonymous)).toEqual({ status: 'ok' });
+    expect(jsonBody(signedIn)).toHaveProperty('modules');
+  });
+
+  it('keeps full details where login is not enforced', async () => {
+    harness = await createTestApp();
+    const response = await harness.app.inject({ method: 'GET', url: '/api/v1/health' });
+    expect(jsonBody(response)).toHaveProperty('version');
   });
 });
 

@@ -21,7 +21,17 @@ export interface AppConfig {
    */
   bridgeAllowPrivateSources: boolean;
   publicBaseUrl: string | undefined;
-  trustProxy: boolean;
+  /**
+   * Which upstream hops may set `X-Forwarded-*`, in the form Fastify's `trustProxy`
+   * takes. Never a blanket `true`: trusting every hop lets any client choose its own
+   * `request.ip` by sending the header itself.
+   */
+  trustProxy: false | string[];
+  /**
+   * Extra Host names the server answers to, beyond loopback, IP literals and
+   * private-network names. Needed only for a public DNS name in front of a proxy.
+   */
+  allowedHosts: string[];
   /** True when the server listens beyond loopback. Also decides cookie hardening. */
   isExposed: boolean;
   /**
@@ -53,6 +63,8 @@ export function defaultDataDir(): string {
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const host = env['GCA_HOST'] ?? '127.0.0.1';
   const port = Number(env['GCA_PORT'] ?? 3210);
+  const publicBaseUrl = env['GCA_PUBLIC_BASE_URL']?.trim() || undefined;
+  const trustProxy = resolveTrustProxy(env['GCA_TRUST_PROXY']);
 
   return {
     host,
@@ -62,10 +74,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     masterKeyFile: env['GCA_MASTER_KEY_FILE'],
     bridgeToken: normalizeBridgeToken(env['GCA_BRIDGE_TOKEN']),
     bridgeAllowPrivateSources: env['GCA_BRIDGE_ALLOW_PRIVATE_SOURCES'] === 'true',
-    publicBaseUrl: env['GCA_PUBLIC_BASE_URL'],
-    trustProxy: env['GCA_TRUST_PROXY'] === 'true',
+    publicBaseUrl,
+    trustProxy,
+    allowedHosts: parseList(env['GCA_ALLOWED_HOSTS']).map((entry) => entry.toLowerCase()),
     isExposed: !isLoopbackBind(host),
-    authRequired: resolveAuthRequired(env['GCA_AUTH_REQUIRED'], host),
+    authRequired: resolveAuthRequired(
+      env['GCA_AUTH_REQUIRED'],
+      host,
+      trustProxy !== false || publicBaseUrl !== undefined,
+    ),
     version: APP_VERSION,
   };
 }
@@ -119,13 +136,39 @@ export function normalizeBridgeToken(value: string | undefined): string | undefi
 /**
  * Decides whether the browser API requires a login.
  *
- * Unset follows the bind address, which is right for a native install. `false` is
- * for a container whose port is published on the host's loopback: the app sees
- * 0.0.0.0 and would otherwise lock itself behind a password nobody can set.
+ * Unset follows the bind address, which is right for a native install — unless a
+ * reverse proxy is configured. A proxy on the same machine connects over loopback,
+ * so a loopback bind says nothing about who can reach the app through it. `false`
+ * is for a container whose port is published on the host's loopback: the app sees
+ * 0.0.0.0 even though nothing outside the host can connect.
  */
-export function resolveAuthRequired(value: string | undefined, host: string): boolean {
+export function resolveAuthRequired(
+  value: string | undefined,
+  host: string,
+  behindProxy = false,
+): boolean {
   const normalized = value?.trim().toLowerCase();
   if (normalized === 'true') return true;
   if (normalized === 'false') return false;
-  return !isLoopbackBind(host);
+  return behindProxy || !isLoopbackBind(host);
+}
+
+/**
+ * Parses `GCA_TRUST_PROXY` into the hops Fastify may believe.
+ *
+ * `true` keeps working for the documented same-machine proxy, but means loopback
+ * only rather than every hop. Anything else is a list of addresses or CIDRs.
+ */
+export function resolveTrustProxy(value: string | undefined): false | string[] {
+  const normalized = value?.trim().toLowerCase();
+  if (!normalized || normalized === 'false') return false;
+  if (normalized === 'true') return ['loopback'];
+  return parseList(value);
+}
+
+function parseList(value: string | undefined): string[] {
+  return (value ?? '')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
 }

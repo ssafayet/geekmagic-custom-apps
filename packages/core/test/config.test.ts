@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { loadConfig, normalizeBridgeToken, resolveAuthRequired } from '../src/config.js';
+import {
+  loadConfig,
+  normalizeBridgeToken,
+  resolveAuthRequired,
+  resolveTrustProxy,
+} from '../src/config.js';
 
 const LONG_ENOUGH = 'a'.repeat(32);
 
@@ -52,5 +57,50 @@ describe('resolveAuthRequired', () => {
 
   it('falls back to the bind address for an unrecognised value', () => {
     expect(resolveAuthRequired('yes-please', '0.0.0.0')).toBe(true);
+  });
+});
+
+describe('login behind a reverse proxy', () => {
+  // A proxy on the same machine connects over loopback, so a loopback bind no longer
+  // means only this machine can reach the app.
+  it('is required by default once a proxy is configured', () => {
+    expect(loadConfig({ GCA_TRUST_PROXY: 'true' }).authRequired).toBe(true);
+    expect(loadConfig({ GCA_PUBLIC_BASE_URL: 'https://panel.example.org' }).authRequired).toBe(
+      true,
+    );
+  });
+
+  it('still needs nothing for a plain loopback install', () => {
+    expect(loadConfig({}).authRequired).toBe(false);
+  });
+
+  it('can still be switched off explicitly', () => {
+    expect(loadConfig({ GCA_TRUST_PROXY: 'true', GCA_AUTH_REQUIRED: 'false' }).authRequired).toBe(
+      false,
+    );
+  });
+});
+
+describe('resolveTrustProxy', () => {
+  it('is off when unset', () => {
+    expect(resolveTrustProxy(undefined)).toBe(false);
+    expect(resolveTrustProxy('false')).toBe(false);
+  });
+
+  // Trusting every hop would let any client pick its own address with a header.
+  it('reads "true" as the same-machine proxy only', () => {
+    expect(resolveTrustProxy('true')).toEqual(['loopback']);
+  });
+
+  it('accepts a list of proxy addresses', () => {
+    expect(resolveTrustProxy('192.168.1.10, 10.0.0.0/8')).toEqual(['192.168.1.10', '10.0.0.0/8']);
+  });
+});
+
+describe('allowed hosts', () => {
+  it('parses a comma-separated list, lowercased', () => {
+    expect(
+      loadConfig({ GCA_ALLOWED_HOSTS: 'Displays.Example.com, other.example' }).allowedHosts,
+    ).toEqual(['displays.example.com', 'other.example']);
   });
 });

@@ -9,20 +9,19 @@ async function main(): Promise<void> {
   const ctx = await createAppContext({ config, logger });
   const app = await buildServer(ctx);
 
-  if (config.authRequired && !app.auth.configured) {
-    // Every browser API call will answer 401 until a password exists, and there is
-    // no way to set one from a locked-out UI. Say exactly how to get out of it.
-    logger.error(
-      { host: config.host },
-      'Authentication is required but no administrator password is set, so the web UI will be refused. ' +
-        'Set one with: curl -X POST http://127.0.0.1:PORT/api/v1/auth/password -H "content-type: application/json" -d \'{"password":"..."}\' ' +
-        '— or bind GCA_HOST=127.0.0.1, or set GCA_AUTH_REQUIRED=false when the port is published on loopback only.',
+  if (config.authRequired && !app.auth.configured && app.auth.setupToken) {
+    // Choosing the first password needs this code, so nobody else on the network can
+    // claim a fresh server first. The log is where the operator already looks.
+    logger.warn(
+      { setupCode: app.auth.setupToken, file: app.auth.setupTokenPath },
+      `No administrator password is set yet. Open the web UI and enter setup code ${app.auth.setupToken} to choose one.`,
     );
   }
   if (config.isExposed && !config.authRequired) {
-    logger.warn(
+    logger.error(
       { host: config.host },
-      'GCA_AUTH_REQUIRED=false while bound beyond loopback. Only do this when something else limits who can connect.',
+      'GCA_AUTH_REQUIRED=false while bound beyond loopback: anyone who can reach this port controls the app. ' +
+        'Only do this when the port is published on 127.0.0.1 (for example `-p 127.0.0.1:3210:3210`).',
     );
   }
 
