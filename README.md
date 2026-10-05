@@ -1,3 +1,5 @@
+![GeekMagic Custom Apps — tiny screen, big possibilities](docs/images/banner.jpg)
+
 # geekmagic-custom-apps
 
 Render small information screens and push them to a **stock GeekMagic SmallTV display** over its
