@@ -98,6 +98,7 @@ export async function createAppContext(options: CreateContextOptions): Promise<A
   const claudeSettings = new LocalClaudeSettingsService({
     dataDir: config.dataDir,
     bridgeCommand: resolveBridgeCommand(),
+    bridgeEntry: resolveBridgeEntry(),
     endpoint: `http://127.0.0.1:${config.port}/internal/claude/statusline`,
   });
   // An explicit token lets a containerised server and a host-side bridge agree on a
@@ -215,35 +216,19 @@ function readCoreSettings(store: Store): CoreSettings {
 }
 
 /**
- * Absolute command Claude Code will invoke for the bridge.
+ * The built bridge entry point Claude Code will invoke.
  *
- * Resolved from this file's own location so it is correct whether the server is
- * running from `src` under tsx or from a built `dist`.
+ * Always `dist/cli.js`, even when the server itself runs from source under tsx:
+ * Claude Code runs the status line from whatever project is open, and a
+ * `--import tsx` command resolves tsx from there, failing outside this repository.
+ * Resolved from this file's location so it is right from `src` and from `dist`.
  */
-function resolveBridgeCommand(): string {
+function resolveBridgeEntry(): string {
   const here = dirname(fileURLToPath(import.meta.url));
-  if (here.includes(`${'src'}`)) {
-    const source = resolve(
-      here,
-      '..',
-      '..',
-      '..',
-      'tools',
-      'claude-statusline-bridge',
-      'src',
-      'cli.ts',
-    );
-    return `${process.execPath} --import tsx ${source}`;
-  }
-  const built = resolve(
-    here,
-    '..',
-    '..',
-    '..',
-    'tools',
-    'claude-statusline-bridge',
-    'dist',
-    'cli.js',
-  );
-  return `${process.execPath} ${built}`;
+  return resolve(here, '..', '..', '..', 'tools', 'claude-statusline-bridge', 'dist', 'cli.js');
+}
+
+function resolveBridgeCommand(): string {
+  const quote = (value: string) => (/\s/.test(value) ? JSON.stringify(value) : value);
+  return `${quote(process.execPath)} ${quote(resolveBridgeEntry())}`;
 }

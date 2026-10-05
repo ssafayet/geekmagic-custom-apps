@@ -161,7 +161,7 @@ export function describePush(result: PushResult): string {
   }
   switch (result.reason) {
     case 'missing-token':
-      return 'No bridge token on this machine. Run: gca-claude-bridge install';
+      return 'No bridge token on this machine. Run: pnpm bridge:install';
     case 'no-local-usage':
       return 'No local Claude usage to read yet. Run claude once, then retry.';
     case 'no-windows':

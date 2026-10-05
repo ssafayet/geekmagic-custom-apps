@@ -12,7 +12,7 @@
  * the bridge up on the host, where Claude Code actually runs.
  */
 import { fileURLToPath } from 'node:url';
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { defaultDataDir, LocalClaudeSettingsService, type BridgeManifest } from '@gca/core';
 import { readConfig, readStdin, runBridge } from './bridge.js';
@@ -81,6 +81,11 @@ const DEFAULT_PUSH_INTERVAL_SECONDS = 60;
  * it suits cron or a launchd timer; `--watch` keeps it resident instead.
  */
 async function pushCommand(flags: Map<string, string>): Promise<number> {
+  // Same as install: a containerised server holds a token this side cannot derive.
+  const supplied = flags.get('token') ?? process.env['GCA_BRIDGE_TOKEN'];
+  if (supplied && supplied !== 'true' && !flags.has('token-file')) {
+    createService(flags).writeToken(supplied);
+  }
   const config = {
     version: 1,
     endpoint: endpointFor(flags),
@@ -133,6 +138,12 @@ async function pushCommand(flags: Map<string, string>): Promise<number> {
 }
 
 async function installCommand(flags: Map<string, string>): Promise<number> {
+  if (!existsSync(bridgeEntryPath())) {
+    process.stderr.write(
+      `The bridge is not built yet (${bridgeEntryPath()} is missing). Run \`pnpm build\` first.\n`,
+    );
+    return 1;
+  }
   const service = createService(flags);
 
   // A server that was handed GCA_BRIDGE_TOKEN has a token this side cannot derive,
@@ -214,7 +225,7 @@ async function doctorCommand(flags: Map<string, string>): Promise<number> {
   lines.push(
     state.installed
       ? `Installed in ${state.settingsPath}`
-      : `NOT installed in ${state.settingsPath} — run \`install\``,
+      : `NOT installed in ${state.settingsPath} — run \`pnpm bridge:install\``,
   );
   if (!state.installed) failed = true;
   if (state.conflict) lines.push(`Conflict: ${state.conflict}`);
@@ -280,16 +291,16 @@ async function probeServer(
     lines.push('FAILED: the server rejects this token, so no usage will ever arrive.');
     if (tokenPath) lines.push(`  This side reads ${tokenPath}`);
     lines.push('  The server was started with a different one. Re-run install with it:');
-    lines.push('    install --token "$GCA_BRIDGE_TOKEN"');
+    lines.push('    pnpm bridge:install --token "$GCA_BRIDGE_TOKEN"');
     lines.push('  In Docker, check the container really received it:');
-    lines.push('    docker compose --env-file .env -f docker/compose.yaml config');
+    lines.push('    docker compose config | grep GCA_BRIDGE_TOKEN');
     return { ok: false, lines };
   }
 
   if (response.status === 401) {
     lines.push('FAILED: the server refuses this source address.');
     lines.push('  A published container port arrives through NAT rather than loopback.');
-    lines.push('  Set GCA_BRIDGE_ALLOW_PRIVATE_SOURCES=true on the server.');
+    lines.push('  Set GCA_BRIDGE_ALLOW_PRIVATE_SOURCES=true on the server (compose.yaml does).');
     return { ok: false, lines };
   }
 
@@ -351,13 +362,22 @@ function endpointFor(flags: Map<string, string>): string {
   return `http://127.0.0.1:${Number.isInteger(port) ? port : DEFAULT_PORT}/internal/claude/statusline`;
 }
 
-/** The absolute invocation Claude Code will run, resolved from this file's location. */
+/**
+ * The built entry point Claude Code will run, resolved from this file's location.
+ *
+ * Always the compiled `dist/cli.js`, even when this CLI itself runs from source.
+ * Claude Code invokes the status line from whatever project it has open, and a
+ * `--import tsx` command resolves tsx from that directory — so a source command
+ * works inside this repository and fails with ERR_MODULE_NOT_FOUND everywhere else.
+ */
+function bridgeEntryPath(): string {
+  const here = dirname(fileURLToPath(import.meta.url));
+  return here.endsWith('src') ? resolve(here, '..', 'dist', 'cli.js') : join(here, 'cli.js');
+}
+
 function bridgeCommand(): string {
-  const here = fileURLToPath(import.meta.url);
-  const isSource = here.endsWith('.ts');
-  return isSource
-    ? `${process.execPath} --import tsx ${here}`
-    : `${process.execPath} ${join(dirname(here), 'cli.js')}`;
+  const quote = (value: string) => (/\s/.test(value) ? JSON.stringify(value) : value);
+  return `${quote(process.execPath)} ${quote(bridgeEntryPath())}`;
 }
 
 function parseFlags(args: string[]): Map<string, string> {
@@ -404,8 +424,9 @@ function printHelp(): void {
       '  --endpoint <url>        Full ingestion URL, overriding --port',
       '  --interval <seconds>    Gap between pushes with --watch (default 60, min 10)',
       '  --token-file <path>     Read the ingestion token from this file',
-      '  --token <value>         Use this ingestion token (or set GCA_BRIDGE_TOKEN).',
-      '                          Required when the server runs in a container.',
+      '  --token <value>         Use this ingestion token (or set GCA_BRIDGE_TOKEN) for',
+      '                          install and push. Required when the server runs in a',
+      '                          container; it is saved to the token file for later runs.',
       '',
     ].join('\n'),
   );

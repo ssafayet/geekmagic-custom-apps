@@ -325,7 +325,7 @@ class ClaudeUsageRuntime implements ModuleRuntime<ClaudeUsageSnapshot> {
       return {
         ok: false,
         message:
-          'Bridge installation is not available in this deployment. Install it on the host with `gca-claude-bridge install`.',
+          'Bridge installation is not available in this deployment. Install it on the host with `pnpm bridge:install`.',
         code: 'CLAUDE_BRIDGE_INSTALL_FAILED',
       };
     }
@@ -579,7 +579,7 @@ class ClaudeUsageRuntime implements ModuleRuntime<ClaudeUsageSnapshot> {
       headline: 'No usage received',
       detail: bridge?.installed
         ? 'Install the status-line bridge or add a usage credential'
-        : 'Run: gca-claude-bridge doctor',
+        : 'Run: pnpm bridge:doctor',
       code: 'CLAUDE_BRIDGE_NOT_CONNECTED',
       waiting: false,
     };

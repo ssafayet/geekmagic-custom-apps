@@ -98,7 +98,7 @@ describe('pushUsage', () => {
     expect(result.posted).toBe(false);
     expect(result.reason).toBe('missing-token');
     expect(d.posts).toHaveLength(0);
-    expect(describePush(result)).toContain('gca-claude-bridge install');
+    expect(describePush(result)).toContain('pnpm bridge:install');
   });
 
   it('does not post when there is no local reading', async () => {

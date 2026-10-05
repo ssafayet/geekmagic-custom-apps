@@ -35,8 +35,13 @@ export interface BridgeManifest {
 
 export interface ClaudeSettingsServiceOptions {
   dataDir: string;
-  /** Absolute path to the bridge CLI entry point. */
+  /** Command Claude Code runs for the bridge: node plus the built entry point. */
   bridgeCommand: string;
+  /**
+   * The built entry point that command runs. When given, installing refuses while
+   * it is missing rather than writing a status line that fails on every render.
+   */
+  bridgeEntry?: string;
   /** Loopback ingestion endpoint the bridge posts to. */
   endpoint: string;
   settingsPath?: string;
@@ -55,6 +60,7 @@ export class LocalClaudeSettingsService implements ClaudeSettingsService {
   readonly #manifestPath: string;
   readonly #tokenPath: string;
   readonly #bridgeCommand: string;
+  readonly #bridgeEntry: string | undefined;
   readonly #endpoint: string;
 
   constructor(options: ClaudeSettingsServiceOptions) {
@@ -62,6 +68,7 @@ export class LocalClaudeSettingsService implements ClaudeSettingsService {
     this.#manifestPath = join(options.dataDir, MANIFEST_FILENAME);
     this.#tokenPath = join(options.dataDir, TOKEN_FILENAME);
     this.#bridgeCommand = options.bridgeCommand;
+    this.#bridgeEntry = options.bridgeEntry;
     this.#endpoint = options.endpoint;
   }
 
@@ -134,6 +141,12 @@ export class LocalClaudeSettingsService implements ClaudeSettingsService {
   }
 
   async install(): Promise<ClaudeBridgeInstallState> {
+    if (this.#bridgeEntry !== undefined && !existsSync(this.#bridgeEntry)) {
+      throw new AppError(
+        'CLAUDE_BRIDGE_INSTALL_FAILED',
+        'The bridge is not built yet, so Claude Code would have nothing to run. Run `pnpm build` and try again.',
+      );
+    }
     const existing = this.readSettings() ?? {};
     const current = existing['statusLine'] ?? null;
 
