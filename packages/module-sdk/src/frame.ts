@@ -82,6 +82,56 @@ export interface AircraftFrameLayout {
   attribution: string;
 }
 
+/** Condition glyphs the weather layout can draw. Modules pick one; they never draw. */
+export const WEATHER_CONDITION_ICONS = [
+  'clear-day',
+  'clear-night',
+  'partly-cloudy-day',
+  'partly-cloudy-night',
+  'cloudy',
+  'fog',
+  'drizzle',
+  'rain',
+  'snow',
+  'thunderstorm',
+] as const;
+export type WeatherConditionIcon = (typeof WEATHER_CONDITION_ICONS)[number];
+
+export interface WeatherTile {
+  /** Short uppercase-able label such as `Humidity`. */
+  label: string;
+  /** Pre-formatted; `—` when the source did not report it. */
+  value: string;
+  /**
+   * A word drawn after the value, such as an AQI category or a compass point. Carries
+   * the meaning when `tone` is set, so state never rests on colour alone.
+   */
+  detail?: string;
+  tone?: SemanticColor;
+  /**
+   * Draws a direction arrow before the value, rotated clockwise from straight up.
+   * For wind this is the direction the air is moving *towards*, which is the opposite
+   * of the meteorological "from" bearing that `detail` names.
+   */
+  arrowDegrees?: number;
+}
+
+export interface WeatherFrameLayout {
+  kind: 'weather';
+  /** `27°`. Units are the module's business; the renderer only draws the string. */
+  temperatureText: string;
+  condition: string;
+  conditionIcon: WeatherConditionIcon;
+  /** One muted line under the condition, e.g. `Feels 30° · H 31° L 24°`. */
+  summary?: string;
+  /** Up to four, drawn as a two-by-two grid in order. */
+  tiles: WeatherTile[];
+  /** Left footer: the data sources. */
+  attribution: string;
+  /** Right footer: the reading's age. */
+  footer?: string;
+}
+
 export interface EmptyFrameLayout {
   kind: 'empty';
   icon: string;
@@ -103,6 +153,7 @@ export type FrameLayout =
   | HeroFrameLayout
   | DualProgressFrameLayout
   | AircraftFrameLayout
+  | WeatherFrameLayout
   | EmptyFrameLayout
   | ErrorFrameLayout;
 

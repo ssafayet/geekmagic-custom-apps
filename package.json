@@ -37,6 +37,7 @@
     "@gca/module-adsb-monitor": "workspace:*",
     "@gca/module-claude-usage": "workspace:*",
     "@gca/module-sdk": "workspace:*",
+    "@gca/module-weather": "workspace:*",
     "@gca/renderer": "workspace:*",
     "@gca/secrets": "workspace:*",
     "@gca/shared": "workspace:*",

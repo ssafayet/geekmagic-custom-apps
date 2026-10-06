@@ -26,6 +26,9 @@ importers:
       '@gca/module-sdk':
         specifier: workspace:*
         version: link:packages/module-sdk
+      '@gca/module-weather':
+        specifier: workspace:*
+        version: link:packages/module-weather
       '@gca/renderer':
         specifier: workspace:*
         version: link:packages/renderer
@@ -80,6 +83,9 @@ importers:
       '@gca/module-sdk':
         specifier: workspace:*
         version: link:../../packages/module-sdk
+      '@gca/module-weather':
+        specifier: workspace:*
+        version: link:../../packages/module-weather
       '@gca/renderer':
         specifier: workspace:*
         version: link:../../packages/renderer
@@ -157,6 +163,9 @@ importers:
       '@gca/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
+      '@gca/module-weather':
+        specifier: workspace:*
+        version: link:../module-weather
       '@gca/renderer':
         specifier: workspace:*
         version: link:../renderer
@@ -227,6 +236,15 @@ importers:
 
   packages/module-sdk:
     dependencies:
+      '@gca/shared':
+        specifier: workspace:*
+        version: link:../shared
+
+  packages/module-weather:
+    dependencies:
+      '@gca/module-sdk':
+        specifier: workspace:*
+        version: link:../module-sdk
       '@gca/shared':
         specifier: workspace:*
         version: link:../shared

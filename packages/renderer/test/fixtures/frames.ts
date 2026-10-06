@@ -48,6 +48,24 @@ const adsb = (
   },
 });
 
+const weather = (
+  name: string,
+  layout: ModuleFrameDraft['layout'],
+  overrides: Partial<ModuleFrameDraft> = {},
+): FrameFixture => ({
+  name,
+  draft: {
+    id: name,
+    viewId: 'current',
+    title: 'Dhaka',
+    icon: 'thermometer',
+    accent: 'cyan',
+    priority: 'normal',
+    layout,
+    ...overrides,
+  },
+});
+
 export const FRAME_FIXTURES: FrameFixture[] = [
   claude('claude-usage-low', {
     kind: 'dual-progress',
@@ -377,6 +395,108 @@ export const FRAME_FIXTURES: FrameFixture[] = [
       code: 'ADSB_LOCATION_INVALID',
     },
     { title: 'ADS-B' },
+  ),
+  weather('weather-clear-day', {
+    kind: 'weather',
+    temperatureText: '32°',
+    condition: 'Clear',
+    conditionIcon: 'clear-day',
+    summary: 'Feels 37° · H 35° L 26°',
+    tiles: [
+      { label: 'Humidity', value: '56%' },
+      { label: 'Wind', value: '4 km/h', detail: 'E', arrowDegrees: 270 },
+      { label: 'AQI', value: '172', detail: 'Unhealthy', tone: 'red' },
+      { label: 'UV index', value: '3', detail: 'Moderate', tone: 'amber' },
+    ],
+    attribution: 'Open-Meteo',
+    footer: '2m ago',
+  }),
+  weather(
+    'weather-night-imperial',
+    {
+      kind: 'weather',
+      temperatureText: '53°',
+      condition: 'Mainly clear',
+      conditionIcon: 'clear-night',
+      summary: 'Feels 46° · H 71° L 55°',
+      tiles: [
+        { label: 'Humidity', value: '49%' },
+        { label: 'Wind', value: '7 mph', detail: 'NNW', arrowDegrees: 151 },
+        { label: 'Pressure', value: '30.08 inHg' },
+        { label: 'UV index', value: '0', detail: 'Low', tone: 'green' },
+      ],
+      attribution: 'Open-Meteo',
+      footer: '1m ago',
+    },
+    { title: 'Brooklyn', accent: 'blue' },
+  ),
+  // Every awkward length at once: a negative three-digit-wide temperature, a condition
+  // that must ellipsize, a gale, a missing AQI and a monitor-sourced label.
+  weather(
+    'weather-extremes-and-missing',
+    {
+      kind: 'weather',
+      temperatureText: '-12°',
+      condition: 'Heavy snow showers with drifting',
+      conditionIcon: 'snow',
+      tiles: [
+        { label: 'Humidity', value: '—' },
+        { label: 'Wind', value: '112 km/h', detail: 'WSW', arrowDegrees: 67 },
+        { label: 'AQI · sensor', value: '—' },
+        { label: 'Gusts', value: '148 km/h' },
+      ],
+      attribution: 'Open-Meteo · AirGradient',
+      footer: '3h 5m ago',
+    },
+    { title: 'Reykjavík', badge: { text: 'stale', tone: 'amber' } },
+  ),
+  weather('weather-thunderstorm', {
+    kind: 'weather',
+    temperatureText: '24°',
+    condition: 'Heavy thunderstorm',
+    conditionIcon: 'thunderstorm',
+    summary: 'Feels 27° · H 29° L 22°',
+    tiles: [
+      { label: 'Humidity', value: '94%' },
+      { label: 'Wind', value: '9.4 m/s', detail: 'SSE', arrowDegrees: 340 },
+      { label: 'AQI', value: '38', detail: 'Good', tone: 'green' },
+      { label: 'Precipitation', value: '6.2 mm' },
+    ],
+    attribution: 'Open-Meteo',
+    footer: '4m ago',
+  }),
+  weather(
+    'weather-air-monitor',
+    {
+      kind: 'hero',
+      value: '23',
+      unit: 'US AQI',
+      caption: 'Good',
+      tone: 'green',
+      supporting: [
+        { label: 'PM2.5', value: '4.1 µg/m³' },
+        { label: 'CO₂', value: '640 ppm' },
+        { label: 'TVOC index', value: '87' },
+      ],
+      footer: 'AirGradient · 1m ago',
+    },
+    { viewId: 'air-quality', title: 'Living room', icon: 'leaf' },
+  ),
+  weather(
+    'weather-air-sensitive',
+    {
+      kind: 'hero',
+      value: '128',
+      unit: 'US AQI',
+      caption: 'Unhealthy (sensitive)',
+      tone: 'orange',
+      supporting: [
+        { label: 'PM2.5', value: '46.2 µg/m³' },
+        { label: 'PM10', value: '71 µg/m³' },
+      ],
+      footer: 'Open-Meteo · 38m ago',
+    },
+    { viewId: 'air-quality', icon: 'leaf' },
   ),
 ];
 

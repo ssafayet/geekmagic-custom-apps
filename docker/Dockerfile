@@ -22,6 +22,7 @@ COPY packages/device-core/package.json packages/device-core/
 COPY packages/module-adsb-monitor/package.json packages/module-adsb-monitor/
 COPY packages/module-claude-usage/package.json packages/module-claude-usage/
 COPY packages/module-sdk/package.json packages/module-sdk/
+COPY packages/module-weather/package.json packages/module-weather/
 COPY packages/renderer/package.json packages/renderer/
 COPY packages/secrets/package.json packages/secrets/
 COPY packages/shared/package.json packages/shared/

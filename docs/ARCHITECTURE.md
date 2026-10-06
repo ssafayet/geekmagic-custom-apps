@@ -19,6 +19,7 @@ packages/
   core/                    Registry, runtime manager, scheduler, device manager
   module-claude-usage/
   module-adsb-monitor/
+  module-weather/
 tools/
   claude-statusline-bridge/  Host-side bridge CLI
   scripts/                   Fixture rendering helper

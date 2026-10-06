@@ -3,6 +3,8 @@ export const MODULE_PERMISSIONS = [
   'network:adsb-fi',
   'network:opensky',
   'network:adsbdb',
+  'network:open-meteo',
+  'network:airgradient',
   'host:claude-cli-status',
   'host:claude-settings-write',
   'secrets:read-own',

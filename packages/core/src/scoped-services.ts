@@ -23,6 +23,10 @@ const PERMISSION_HOSTS: Partial<Record<ModulePermission, string[]>> = {
   'network:opensky': ['opensky-network.org', 'auth.opensky-network.org'],
   // Callsign -> airline and route. A schedule database, not a position source.
   'network:adsbdb': ['api.adsbdb.com'],
+  // Forecast and air quality are separate hosts of the same keyless service.
+  'network:open-meteo': ['api.open-meteo.com', 'air-quality-api.open-meteo.com'],
+  // The cloud API for a user's own AirGradient monitors; needs their token.
+  'network:airgradient': ['api.airgradient.com'],
 };
 
 const DEFAULT_TIMEOUT_MS = 10_000;

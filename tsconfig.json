@@ -10,6 +10,7 @@
     { "path": "./packages/core" },
     { "path": "./packages/module-claude-usage" },
     { "path": "./packages/module-adsb-monitor" },
+    { "path": "./packages/module-weather" },
     { "path": "./tools/claude-statusline-bridge" },
     { "path": "./apps/server" }
   ]

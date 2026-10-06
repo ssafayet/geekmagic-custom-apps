@@ -66,6 +66,8 @@ reach only the hosts its permissions allow, and host services only when declared
 | `network:adsb-fi`            | HTTPS to `opendata.adsb.fi`                      |
 | `network:opensky`            | HTTPS to `opensky-network.org` and its auth host |
 | `network:adsbdb`             | HTTPS to `api.adsbdb.com`                        |
+| `network:open-meteo`         | HTTPS to `api.open-meteo.com` and its AQ host    |
+| `network:airgradient`        | HTTPS to `api.airgradient.com`                   |
 | `host:claude-cli-status`     | `ctx.host.claudeCli`, `ctx.host.bridgeInbox`     |
 | `host:claude-settings-write` | `ctx.host.claudeSettings`                        |
 | `secrets:read-own`           | `ctx.secrets` for declared keys                  |
@@ -190,7 +192,7 @@ Modules describe content; the renderer owns typography, spacing and encoding.
 }
 ```
 
-Layouts: `hero`, `dual-progress`, `aircraft`, `empty`, `error`. The runtime fills in
+Layouts: `hero`, `dual-progress`, `aircraft`, `weather`, `empty`, `error`. The runtime fills in
 `fingerprint` and `validUntil`.
 
 Two constraints the renderer enforces and modules should respect:

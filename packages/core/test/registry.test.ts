@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AnyAppModule } from '@gca/module-sdk';
 import { adsbMonitorModule } from '@gca/module-adsb-monitor';
+import { weatherModule } from '@gca/module-weather';
 import { claudeUsageModule } from '@gca/module-claude-usage';
 import { builtInModules, ModuleRegistry, validateModule } from '../src/registry.js';
 import { SettingsValidator, migrateToCurrent, formatAjvError } from '../src/settings-validator.js';
@@ -42,9 +43,9 @@ function sampleModule(overrides: Partial<AnyAppModule> = {}): AnyAppModule {
 }
 
 describe('built-in registry', () => {
-  it('loads both shipped modules with no rejections', () => {
+  it('loads every shipped module with no rejections', () => {
     const registry = new ModuleRegistry(builtInModules);
-    expect(registry.report.loaded).toEqual(['claude-usage', 'adsb-monitor']);
+    expect(registry.report.loaded).toEqual(['claude-usage', 'adsb-monitor', 'weather']);
     expect(registry.report.rejected).toEqual([]);
   });
 
@@ -60,7 +61,7 @@ describe('built-in registry', () => {
     });
     const registry = new ModuleRegistry([...builtInModules, broken]);
 
-    expect(registry.report.loaded).toEqual(['claude-usage', 'adsb-monitor']);
+    expect(registry.report.loaded).toEqual(['claude-usage', 'adsb-monitor', 'weather']);
     expect(registry.report.rejected[0]?.reason).toMatch(/kebab-case/);
   });
 
@@ -80,9 +81,10 @@ describe('built-in registry', () => {
 });
 
 describe('validateModule', () => {
-  it('accepts both shipped modules', () => {
+  it('accepts every shipped module', () => {
     expect(() => validateModule(claudeUsageModule)).not.toThrow();
     expect(() => validateModule(adsbMonitorModule)).not.toThrow();
+    expect(() => validateModule(weatherModule)).not.toThrow();
   });
 
   it.each([

@@ -1,6 +1,6 @@
 # Built-in modules
 
-Two modules ship in this release. Both are ordinary `AppModule` implementations with
+Three modules ship in this release. All are ordinary `AppModule` implementations with
 no privileged access to the server — see [MODULES.md](MODULES.md) for the contract they
 are written against.
 
@@ -153,3 +153,88 @@ sent to `api.adsbdb.com`. That is the whole request: no coordinates, no device i
 nothing that ties the callsign to you beyond the network connection itself. A callsign
 is public information already broadcast in the clear by the aircraft. Turn the switch
 off to keep every outbound request going to the ADS-B provider alone.
+
+---
+
+## Weather
+
+Current conditions for one location: temperature, condition, feels-like, today's high
+and low, humidity, wind speed and direction, air quality, and a fourth reading you pick
+(UV index by default; pressure, gusts, dew point, precipitation or cloud cover). It has
+two views for **Display order**:
+
+| View               | Shows                                                                         |
+| ------------------ | ----------------------------------------------------------------------------- |
+| Current conditions | The temperature hero, the condition glyph and a two-by-two grid of readings   |
+| Air quality        | US AQI with its category, PM2.5, and CO₂ and TVOC from an AirGradient monitor |
+
+The module is not a singleton: a second city is a second instance.
+
+### Sources
+
+| What          | Source                                                                                   | Account   | Updates          |
+| ------------- | ---------------------------------------------------------------------------------------- | --------- | ---------------- |
+| Weather       | [Open-Meteo forecast API](https://open-meteo.com/en/docs)                                | None      | Every 15 minutes |
+| Air (default) | [Open-Meteo air quality API](https://open-meteo.com/en/docs/air-quality-api), CAMS model | None      | Hourly           |
+| Air, your own | [AirGradient cloud API](https://api.airgradient.com/public/docs/api/v1/)                 | API token | As it reports    |
+| Air, public   | AirGradient's public map, by location ID                                                 | None      | As it reports    |
+
+Open-Meteo is free for **non-commercial** use below 10,000 calls a day. It needs no key,
+covers the whole planet and has a ready "current conditions" block, which is why it is
+the source. A ten-minute poll costs about 290 calls a day for weather and air together.
+Its data is CC BY 4.0, so every frame that uses it credits it in the footer.
+
+**Your own AirGradient monitor.** In the AirGradient dashboard, open the place settings,
+turn on API access under **Connectivity**, and paste the token into the settings page.
+It is stored in the encrypted vault like any module secret. Leave **Location ID** empty
+to use the first monitor on the account, or press **Test location and source** to list
+them all with their IDs. The panel header then shows the monitor's own name, such as
+`Living room`.
+
+**A public monitor.** Choose _Public AirGradient monitor_ and press **Test location and
+source**: it lists the five nearest public monitors that are reporting, with distance
+and current AQI. Put one of the IDs in **Location ID**. No account is needed. The search
+downloads the whole public list (about 1.5 MB), so it runs only from that button, never
+on a poll.
+
+### How the AQI is worked out
+
+- **Open-Meteo** reports the US AQI itself: the highest of six pollutant sub-indices,
+  with particulates averaged over 24 hours.
+- **AirGradient** reports PM2.5 in µg/m³ only, so the module computes the US AQI from
+  it using the EPA's 2024 breakpoints (Good ends at 9.0 µg/m³). It reads
+  `pm02_corrected` when AirGradient publishes it — turn on the EPA correction for your
+  place to get it — and the raw reading otherwise. The breakpoints are defined for a
+  24-hour average, so applying them to a current reading is the same approximation
+  every consumer air display makes. The tile is labelled `AQI · sensor` so the two are
+  never confused.
+
+Indoor monitors measure indoor air. That is often what you want on a desk display, but
+it is not the outdoor index, and the module does not pretend otherwise.
+
+### Behaviour
+
+- **Absent data stays absent.** A variable the model did not report renders as `—`.
+- **Air quality never takes the weather down.** If AirGradient or the air-quality API
+  fails, the temperature keeps updating, the AQI tile shows `—`, health reads
+  _degraded_, and the air view says what failed.
+- **Old readings are not shown as current.** A failed poll keeps the last reading with
+  a `stale` badge after 30 minutes (or three poll intervals), and replaces it with
+  _Weather offline_ after three hours. An AirGradient monitor that stopped reporting
+  keeps its last value in the cloud forever, so the reading's own timestamp is checked:
+  past two hours the air view says _Monitor not reporting_.
+- **A moved location starts clean.** Each reading remembers the coordinates and source
+  it was fetched for. After you change either, a restored snapshot from before is
+  dropped rather than shown under the new label.
+- **Units are a display choice.** Readings are fetched and stored in metric, and
+  converted when drawn, so changing units never needs a refetch.
+- **With air quality off**, the AQI tile is replaced by another reading, and the air
+  view yields its playlist slot to current conditions.
+
+### Privacy
+
+Your coordinates go to Open-Meteo on every poll, and the settings page says so. They
+never go to AirGradient: your own monitor is read through your token, a public one by
+its ID, and the nearest-monitor search measures distances on this machine. Coordinates
+are rounded before they reach any log, as for ADS-B. See
+[SECURITY.md](SECURITY.md#location-privacy).

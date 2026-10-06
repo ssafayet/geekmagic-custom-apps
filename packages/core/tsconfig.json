@@ -10,6 +10,7 @@
     { "path": "../renderer" },
     { "path": "../secrets" },
     { "path": "../module-claude-usage" },
-    { "path": "../module-adsb-monitor" }
+    { "path": "../module-adsb-monitor" },
+    { "path": "../module-weather" }
   ]
 }

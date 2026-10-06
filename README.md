@@ -13,13 +13,15 @@ module data  →  normalized frame  →  SVG  →  480×480 raster  →  240×24
 The display is an image sink; modules never run on it. A frame whose bytes are unchanged
 is never re-sent.
 
-Two modules ship in this release:
+Three modules ship in this release:
 
 - **Claude Usage** — Claude Code subscription rate limits from your local session, or
   Anthropic organization API tokens and cost.
 - **ADS-B Monitor** — the nearest or currently overhead aircraft around a location you
   configure, with distance, altitude, speed, bearing, and the operator and route behind
   the callsign.
+- **Weather** — temperature, feels-like, humidity, wind and UV for a location, with air
+  quality from Open-Meteo or an AirGradient monitor.
 
 | ADS-B Monitor                                                       | Claude Usage                                                               |
 | ------------------------------------------------------------------- | -------------------------------------------------------------------------- |
@@ -113,7 +115,7 @@ Open <http://localhost:3210>. Works as-is on Docker Desktop, OrbStack and Linux;
 
 ## Turning on the modules
 
-You need neither module to use the other. Each is enabled from the **Modules** page and
+No module needs another. Each is enabled from the **Modules** page and
 placed on the display from **Display order**.
 
 **ADS-B Monitor** needs only a location. It defaults to the free
@@ -137,7 +139,13 @@ Your existing status line keeps working and is restored byte-for-byte by
 `pnpm bridge:uninstall`; no credentials are read and no prompt content is collected.
 `pnpm bridge:doctor` explains anything that is not arriving.
 
-Both are documented in [docs/BUILT-IN-MODULES.md](docs/BUILT-IN-MODULES.md).
+**Weather** needs only a location. Conditions come from
+[Open-Meteo](https://open-meteo.com/), free with no account for non-commercial use. Air
+quality defaults to Open-Meteo's modelled index; point it at your own
+[AirGradient](https://www.airgradient.com/) monitor with an API token, or at any public
+one on the AirGradient map by its location ID. Add a second instance for a second city.
+
+All three are documented in [docs/BUILT-IN-MODULES.md](docs/BUILT-IN-MODULES.md).
 
 ### When the display shows nothing
 
@@ -169,7 +177,7 @@ Full threat model: [docs/SECURITY.md](docs/SECURITY.md).
 | Document                                        | Contents                                            |
 | ----------------------------------------------- | --------------------------------------------------- |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md)         | Package layout, data flow, scheduling model         |
-| [BUILT-IN-MODULES.md](docs/BUILT-IN-MODULES.md) | Claude Usage and ADS-B Monitor in detail            |
+| [BUILT-IN-MODULES.md](docs/BUILT-IN-MODULES.md) | Claude Usage, ADS-B Monitor and Weather in detail   |
 | [DEVICES.md](docs/DEVICES.md)                   | Firmware profiles, endpoints, adding an adapter     |
 | [CLAUDE-BRIDGE.md](docs/CLAUDE-BRIDGE.md)       | Bridge internals, install and recovery              |
 | [MODULES.md](docs/MODULES.md)                   | Writing your own module against the SDK             |

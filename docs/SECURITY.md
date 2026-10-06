@@ -105,7 +105,7 @@ Nothing else is collected at all: no analytics, no telemetry, no crash reporting
 
 ## Location privacy
 
-ADS-B coordinates are treated as sensitive:
+ADS-B and Weather coordinates are treated as sensitive:
 
 - The settings page states plainly that they are sent to the provider on every poll.
 - Logs get a value rounded to one decimal place (~11 km).
@@ -117,6 +117,9 @@ ADS-B coordinates are treated as sensitive:
   screen, to a different host, with no coordinates attached. It is a switch on the
   settings page. See
   [BUILT-IN-MODULES.md](BUILT-IN-MODULES.md#airline-and-route).
+- Weather sends its coordinates to Open-Meteo. AirGradient never receives them: a
+  monitor is read by its location ID, and the nearest-monitor search downloads the
+  public list and measures distance locally.
 
 ## Destructive operations
 

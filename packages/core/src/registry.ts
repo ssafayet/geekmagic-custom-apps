@@ -3,6 +3,7 @@ import type { AnyAppModule, ModuleManifest, ModulePermission } from '@gca/module
 import { MODULE_PERMISSIONS } from '@gca/module-sdk';
 import { adsbMonitorModule } from '@gca/module-adsb-monitor';
 import { claudeUsageModule } from '@gca/module-claude-usage';
+import { weatherModule } from '@gca/module-weather';
 import type { AppLogger } from './logger.js';
 
 /**
@@ -10,7 +11,11 @@ import type { AppLogger } from './logger.js';
  * deliberately out of scope: loading third-party code would need a trust policy and
  * worker isolation, which is a different problem from the one this release solves.
  */
-export const builtInModules: readonly AnyAppModule[] = [claudeUsageModule, adsbMonitorModule];
+export const builtInModules: readonly AnyAppModule[] = [
+  claudeUsageModule,
+  adsbMonitorModule,
+  weatherModule,
+];
 
 export interface RegistryEntry {
   module: AnyAppModule;

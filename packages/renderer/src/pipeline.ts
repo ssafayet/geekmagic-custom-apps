@@ -11,6 +11,7 @@ import {
   renderEmpty,
   renderError,
   renderHero,
+  renderWeather,
 } from './layouts/index.js';
 import { CANVAS, RASTER, document as svgDocument } from './svg.js';
 import { resolveTheme, type Theme } from './theme.js';
@@ -62,6 +63,8 @@ function renderLayoutBody(frame: ModuleFrame | ModuleFrameDraft, theme: Theme): 
       return renderDualProgress(frame.layout, theme, frame.accent);
     case 'aircraft':
       return renderAircraft(frame.layout, theme, frame.accent);
+    case 'weather':
+      return renderWeather(frame.layout, theme, frame.accent);
     case 'empty':
       return renderEmpty(frame.layout, theme, frame.accent);
     case 'error':
