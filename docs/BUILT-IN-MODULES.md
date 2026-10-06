@@ -261,7 +261,8 @@ Add one instance per calendar; work and personal are two links, so two instances
 | iCloud                  | Calendar app → share the calendar → **Public Calendar** → copy the `webcal://` link |
 | Fastmail, Proton        | The calendar's sharing settings → the iCal / ICS link                               |
 
-Paste it into **Calendar link** and press **Test calendar link**: it reads the link on
+Add the module first, then paste the link into **Calendar link**. Until one is saved, the
+display shows _Add your calendar_. Press **Test calendar link**: it reads the link on
 screen, before saving, and lists the next few meetings. Work accounts sometimes have
 publishing turned off by an administrator; the test says so when the provider refuses.
 

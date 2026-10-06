@@ -390,12 +390,6 @@ export const calendarModule: AppModule<CalendarSettings, CalendarSnapshot> = {
     const value = { ...CALENDAR_DEFAULT_SETTINGS, ...(settings as Partial<CalendarSettings>) };
     const errors: Array<{ path: string; message: string }> = [];
 
-    if (!ctx.secretConfigured(CALENDAR_URL_SECRET)) {
-      errors.push({
-        path: `/${CALENDAR_URL_SECRET}`,
-        message: 'Paste your calendar’s secret iCal link.',
-      });
-    }
     const email = value.attendeeEmail.trim();
     if (email !== '' && !/^[^\s@]+@[^\s@]+$/.test(email)) {
       errors.push({ path: '/attendeeEmail', message: 'That does not look like an email address.' });
@@ -403,6 +397,15 @@ export const calendarModule: AppModule<CalendarSettings, CalendarSnapshot> = {
     if (errors.length > 0) return { ok: false, errors };
 
     const warnings: string[] = [];
+    // A missing link is a setup step, not an invalid setting: Add creates the instance
+    // from defaults with no secrets, and the link is pasted afterwards. Refusing here
+    // would make the module impossible to add. The display and health say what is
+    // missing until it arrives.
+    if (!ctx.secretConfigured(CALENDAR_URL_SECRET)) {
+      warnings.push(
+        'No calendar link yet. The display shows “Add your calendar” until you paste one.',
+      );
+    }
     if (
       value.remindersEnabled &&
       value.reminderDisplay === 'until-start' &&

@@ -305,10 +305,11 @@ describe('validateSettings', () => {
     secretConfigured: (key: string) => configured && key === CALENDAR_URL_SECRET,
   });
 
-  it('needs a link', async () => {
+  it('accepts defaults with no link, so the module can be added first', async () => {
+    // The Add button creates an instance from defaults with no secrets.
     const result = await calendarModule.validateSettings({}, ctx(false));
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.errors[0]?.path).toBe('/calendarUrl');
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.warnings?.[0]).toMatch(/No calendar link yet/);
   });
 
   it('checks the email looks like one, and trims it', async () => {

@@ -134,6 +134,13 @@ async validateSettings(settings, ctx) {
 }
 ```
 
+**Your defaults must pass validation with no secrets set.** The catalog's **Add** button
+creates an instance from `defaultSettings` alone, and the user configures it afterwards.
+A rule that refuses the defaults makes the module impossible to add. Require a
+credential only for a choice the user makes, as above. When the module cannot work
+until something is filled in, return a warning instead, and say what is missing in its
+health and on the display. A server test adds every built-in module this way.
+
 ## Runtime
 
 ```ts

@@ -455,6 +455,24 @@ describe('module API', () => {
     expect(preview.rawPayload.length).toBeGreaterThan(1000);
   });
 
+  it('adds every module from its defaults alone, as the Add button does', async () => {
+    harness = await createTestApp();
+    const definitions = jsonBody<Array<{ id: string }>>(
+      await harness.app.inject({ method: 'GET', url: '/api/v1/module-definitions' }),
+    );
+
+    // The catalog's Add button posts only the module id: no settings, no secrets. A
+    // module whose defaults fail its own validation can never be added at all.
+    for (const { id } of definitions) {
+      const response = await harness.app.inject({
+        method: 'POST',
+        url: '/api/v1/module-instances',
+        payload: { moduleId: id },
+      });
+      expect(response.statusCode, `${id}: ${response.body}`).toBeLessThan(300);
+    }
+  });
+
   it('validates a draft without saving it', async () => {
     harness = await createTestApp();
     const instance = jsonBody<{ id: string }>(
