@@ -3,6 +3,7 @@ import type { AnyAppModule, ModuleManifest, ModulePermission } from '@gca/module
 import { MODULE_PERMISSIONS } from '@gca/module-sdk';
 import { adsbMonitorModule } from '@gca/module-adsb-monitor';
 import { claudeUsageModule } from '@gca/module-claude-usage';
+import { calendarModule } from '@gca/module-calendar';
 import { weatherModule } from '@gca/module-weather';
 import type { AppLogger } from './logger.js';
 
@@ -15,6 +16,7 @@ export const builtInModules: readonly AnyAppModule[] = [
   claudeUsageModule,
   adsbMonitorModule,
   weatherModule,
+  calendarModule,
 ];
 
 export interface RegistryEntry {

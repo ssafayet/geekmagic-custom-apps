@@ -20,6 +20,9 @@ importers:
       '@gca/module-adsb-monitor':
         specifier: workspace:*
         version: link:packages/module-adsb-monitor
+      '@gca/module-calendar':
+        specifier: workspace:*
+        version: link:packages/module-calendar
       '@gca/module-claude-usage':
         specifier: workspace:*
         version: link:packages/module-claude-usage
@@ -77,6 +80,9 @@ importers:
       '@gca/module-adsb-monitor':
         specifier: workspace:*
         version: link:../../packages/module-adsb-monitor
+      '@gca/module-calendar':
+        specifier: workspace:*
+        version: link:../../packages/module-calendar
       '@gca/module-claude-usage':
         specifier: workspace:*
         version: link:../../packages/module-claude-usage
@@ -157,6 +163,9 @@ importers:
       '@gca/module-adsb-monitor':
         specifier: workspace:*
         version: link:../module-adsb-monitor
+      '@gca/module-calendar':
+        specifier: workspace:*
+        version: link:../module-calendar
       '@gca/module-claude-usage':
         specifier: workspace:*
         version: link:../module-claude-usage
@@ -224,6 +233,18 @@ importers:
       '@gca/shared':
         specifier: workspace:*
         version: link:../shared
+
+  packages/module-calendar:
+    dependencies:
+      '@gca/module-sdk':
+        specifier: workspace:*
+        version: link:../module-sdk
+      '@gca/shared':
+        specifier: workspace:*
+        version: link:../shared
+      ical.js:
+        specifier: ^2.2.1
+        version: 2.2.1
 
   packages/module-claude-usage:
     dependencies:
@@ -1518,6 +1539,9 @@ packages:
   http-errors@2.0.1:
     resolution: {integrity: sha512-4FbRdAX+bSdmo4AUFuS0WNiPz8NgFt+r8ThgNWmlrjQjt1Q7ZR9+zTlce2859x4KSXrwIsaeTqDoKQmtP8pLmQ==}
     engines: {node: '>= 0.8'}
+
+  ical.js@2.2.1:
+    resolution: {integrity: sha512-yK/UlPbEs316igb/tjRgbFA8ZV75rCsBJp/hWOatpyaPNlgw0dGDmU+FoicOcwX4xXkeXOkYiOmCqNPFpNPkQg==}
 
   inherits@2.0.4:
     resolution: {integrity: sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==}
@@ -3167,6 +3191,8 @@ snapshots:
       setprototypeof: 1.2.0
       statuses: 2.0.2
       toidentifier: 1.0.1
+
+  ical.js@2.2.1: {}
 
   inherits@2.0.4: {}
 

@@ -5,6 +5,7 @@ export const MODULE_PERMISSIONS = [
   'network:adsbdb',
   'network:open-meteo',
   'network:airgradient',
+  'network:calendar-feeds',
   'host:claude-cli-status',
   'host:claude-settings-write',
   'secrets:read-own',

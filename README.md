@@ -13,7 +13,7 @@ module data  →  normalized frame  →  SVG  →  480×480 raster  →  240×24
 The display is an image sink; modules never run on it. A frame whose bytes are unchanged
 is never re-sent.
 
-Three modules ship in this release:
+Four modules ship in this release:
 
 - **Claude Usage** — Claude Code subscription rate limits from your local session, or
   Anthropic organization API tokens and cost.
@@ -22,6 +22,8 @@ Three modules ship in this release:
   the callsign.
 - **Weather** — temperature, feels-like, humidity, wind and UV for a location, with air
   quality from Open-Meteo or an AirGradient monitor.
+- **Calendar** — your next meeting from a Google, Outlook, iCloud, Fastmail or Proton
+  calendar link, with a reminder that interrupts the display before it starts.
 
 | ADS-B Monitor                                                       | Claude Usage                                                               |
 | ------------------------------------------------------------------- | -------------------------------------------------------------------------- |
@@ -145,7 +147,13 @@ quality defaults to Open-Meteo's modelled index; point it at your own
 [AirGradient](https://www.airgradient.com/) monitor with an API token, or at any public
 one on the AirGradient map by its location ID. Add a second instance for a second city.
 
-All three are documented in [docs/BUILT-IN-MODULES.md](docs/BUILT-IN-MODULES.md).
+**Calendar** needs your calendar's secret iCal link, stored encrypted. Ten minutes before
+a meeting (configurable) it interrupts the display with a countdown until the meeting
+starts. Add the calendar to the device's **Display order**: a reminder only reaches
+displays that already show it. New meetings appear on the next check, every five
+minutes by default — and only as fast as your provider updates the link.
+
+All four are documented in [docs/BUILT-IN-MODULES.md](docs/BUILT-IN-MODULES.md).
 
 ### When the display shows nothing
 
@@ -177,7 +185,7 @@ Full threat model: [docs/SECURITY.md](docs/SECURITY.md).
 | Document                                        | Contents                                            |
 | ----------------------------------------------- | --------------------------------------------------- |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md)         | Package layout, data flow, scheduling model         |
-| [BUILT-IN-MODULES.md](docs/BUILT-IN-MODULES.md) | Claude Usage, ADS-B Monitor and Weather in detail   |
+| [BUILT-IN-MODULES.md](docs/BUILT-IN-MODULES.md) | Every built-in module in detail                     |
 | [DEVICES.md](docs/DEVICES.md)                   | Firmware profiles, endpoints, adding an adapter     |
 | [CLAUDE-BRIDGE.md](docs/CLAUDE-BRIDGE.md)       | Bridge internals, install and recovery              |
 | [MODULES.md](docs/MODULES.md)                   | Writing your own module against the SDK             |

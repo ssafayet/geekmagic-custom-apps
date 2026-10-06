@@ -19,6 +19,7 @@
     "@gca/database": "workspace:*",
     "@gca/device-core": "workspace:*",
     "@gca/module-adsb-monitor": "workspace:*",
+    "@gca/module-calendar": "workspace:*",
     "@gca/module-claude-usage": "workspace:*",
     "@gca/module-sdk": "workspace:*",
     "@gca/module-weather": "workspace:*",

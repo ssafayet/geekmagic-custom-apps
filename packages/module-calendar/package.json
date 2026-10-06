@@ -1,0 +1,23 @@
+{
+  "name": "@gca/module-calendar",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@gca/module-sdk": "workspace:*",
+    "@gca/shared": "workspace:*",
+    "ical.js": "^2.2.1"
+  }
+}

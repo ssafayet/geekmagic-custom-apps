@@ -11,6 +11,7 @@
     { "path": "../secrets" },
     { "path": "../module-claude-usage" },
     { "path": "../module-adsb-monitor" },
-    { "path": "../module-weather" }
+    { "path": "../module-weather" },
+    { "path": "../module-calendar" }
   ]
 }

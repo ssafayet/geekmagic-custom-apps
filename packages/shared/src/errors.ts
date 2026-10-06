@@ -30,6 +30,10 @@ export const ERROR_CODES = [
   'AIRGRADIENT_CREDENTIAL_INVALID',
   'AIRGRADIENT_LOCATION_NOT_FOUND',
   'AIRGRADIENT_UNAVAILABLE',
+  'CALENDAR_NOT_CONFIGURED',
+  'CALENDAR_FEED_UNSUPPORTED',
+  'CALENDAR_FEED_UNAVAILABLE',
+  'CALENDAR_FEED_INVALID',
   'MODULE_SETTINGS_INVALID',
   'MODULE_NOT_FOUND',
   'MODULE_ACTION_UNKNOWN',
@@ -100,6 +104,7 @@ function defaultStatusFor(code: ErrorCode): number {
     case 'DEVICE_ADDRESS_BLOCKED':
     case 'ANTHROPIC_USAGE_CREDENTIAL_INVALID':
     case 'AIRGRADIENT_CREDENTIAL_INVALID':
+    case 'CALENDAR_FEED_UNSUPPORTED':
       return 400;
     case 'UNAUTHORIZED':
       return 401;
@@ -125,6 +130,7 @@ function defaultStatusFor(code: ErrorCode): number {
     case 'CLAUDE_BRIDGE_INSTALL_FAILED':
     case 'AIRGRADIENT_NOT_CONFIGURED':
     case 'AIRGRADIENT_LOCATION_NOT_FOUND':
+    case 'CALENDAR_NOT_CONFIGURED':
       return 409;
     case 'RATE_LIMITED':
     case 'ADSB_PROVIDER_RATE_LIMITED':
@@ -138,6 +144,8 @@ function defaultStatusFor(code: ErrorCode): number {
     case 'ANTHROPIC_USAGE_UNAVAILABLE':
     case 'WEATHER_PROVIDER_UNAVAILABLE':
     case 'AIRGRADIENT_UNAVAILABLE':
+    case 'CALENDAR_FEED_UNAVAILABLE':
+    case 'CALENDAR_FEED_INVALID':
       return 502;
     case 'MODULE_REFRESH_TIMEOUT':
       return 504;
@@ -154,6 +162,7 @@ function defaultRetryableFor(code: ErrorCode): boolean {
     case 'ANTHROPIC_USAGE_UNAVAILABLE':
     case 'WEATHER_PROVIDER_UNAVAILABLE':
     case 'AIRGRADIENT_UNAVAILABLE':
+    case 'CALENDAR_FEED_UNAVAILABLE':
     case 'MODULE_REFRESH_TIMEOUT':
     case 'INTERNAL_ERROR':
       return true;

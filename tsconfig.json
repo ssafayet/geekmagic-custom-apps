@@ -11,6 +11,7 @@
     { "path": "./packages/module-claude-usage" },
     { "path": "./packages/module-adsb-monitor" },
     { "path": "./packages/module-weather" },
+    { "path": "./packages/module-calendar" },
     { "path": "./tools/claude-statusline-bridge" },
     { "path": "./apps/server" }
   ]

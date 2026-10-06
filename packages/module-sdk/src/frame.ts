@@ -132,6 +132,26 @@ export interface WeatherFrameLayout {
   footer?: string;
 }
 
+export interface EventFrameLayout {
+  kind: 'event';
+  /** The line a viewer reads from across the room: `in 9 min`, `Now`, `Mon 09:30`. */
+  countdownText: string;
+  /** Defaults to the frame accent. A reminder raises it so it reads as different. */
+  countdownTone?: SemanticColor;
+  /** Wrapped to two lines, then ellipsized. */
+  title: string;
+  /** `14:30 – 15:00`, pre-formatted in the viewer's time zone. */
+  timeText: string;
+  /** Where: a room, or the conferencing service when the location is only a link. */
+  detail?: string;
+  /** The meeting after this one, on one line under a divider. */
+  next?: { timeText: string; title: string };
+  /** Left footer: the calendar. */
+  attribution: string;
+  /** Right footer: the reading's age. */
+  footer?: string;
+}
+
 export interface EmptyFrameLayout {
   kind: 'empty';
   icon: string;
@@ -154,6 +174,7 @@ export type FrameLayout =
   | DualProgressFrameLayout
   | AircraftFrameLayout
   | WeatherFrameLayout
+  | EventFrameLayout
   | EmptyFrameLayout
   | ErrorFrameLayout;
 

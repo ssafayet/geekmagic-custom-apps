@@ -66,6 +66,24 @@ const weather = (
   },
 });
 
+const calendar = (
+  name: string,
+  layout: ModuleFrameDraft['layout'],
+  overrides: Partial<ModuleFrameDraft> = {},
+): FrameFixture => ({
+  name,
+  draft: {
+    id: name,
+    viewId: 'next',
+    title: 'Next meeting',
+    icon: 'calendar',
+    accent: 'blue',
+    priority: 'normal',
+    layout,
+    ...overrides,
+  },
+});
+
 export const FRAME_FIXTURES: FrameFixture[] = [
   claude('claude-usage-low', {
     kind: 'dual-progress',
@@ -497,6 +515,55 @@ export const FRAME_FIXTURES: FrameFixture[] = [
       footer: 'Open-Meteo · 38m ago',
     },
     { viewId: 'air-quality', icon: 'leaf' },
+  ),
+  calendar('calendar-next', {
+    kind: 'event',
+    countdownText: 'in 1h 25m',
+    title: 'Design review',
+    timeText: '14:30 – 15:00',
+    detail: 'Google Meet',
+    next: { timeText: '16:00', title: '1:1 with Sam' },
+    attribution: 'Work',
+    footer: '2m ago',
+  }),
+  // Wraps to two lines and ellipsizes; the room and the next title both truncate.
+  calendar(
+    'calendar-in-progress-long',
+    {
+      kind: 'event',
+      countdownText: 'ends in 20 min',
+      title: 'Quarterly planning with the platform and infrastructure teams',
+      timeText: '13:00 – 14:00',
+      detail: 'Room 4B, Level 3 — North wing',
+      next: { timeText: 'Tomorrow 09:30', title: 'Standup and a very long agenda title' },
+      attribution: 'Work',
+      footer: '1m ago',
+    },
+    { title: 'In progress', badge: { text: 'stale', tone: 'amber' } },
+  ),
+  calendar(
+    'calendar-reminder',
+    {
+      kind: 'event',
+      countdownText: 'in 9 min',
+      countdownTone: 'amber',
+      title: 'Customer call — Acme',
+      timeText: '2:30 PM – 3:00 PM',
+      detail: 'Zoom',
+      attribution: 'Work',
+    },
+    { viewId: 'reminder', title: 'Starting soon', icon: 'bell', priority: 'attention' },
+  ),
+  calendar(
+    'calendar-none',
+    {
+      kind: 'empty',
+      icon: 'calendar',
+      headline: 'No meetings',
+      detail: 'Nothing in the next seven days',
+      footer: 'Work · 3m ago',
+    },
+    { title: 'Work' },
   ),
 ];
 

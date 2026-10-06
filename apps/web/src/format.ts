@@ -44,6 +44,7 @@ export const PERMISSION_LABELS: Record<string, string> = {
   'network:adsbdb': 'Contact api.adsbdb.com',
   'network:open-meteo': 'Contact api.open-meteo.com',
   'network:airgradient': 'Contact api.airgradient.com',
+  'network:calendar-feeds': 'Read a calendar link from Google, Outlook, iCloud, Fastmail or Proton',
   'host:claude-cli-status': 'Check the local Claude Code installation',
   'host:claude-settings-write': 'Modify ~/.claude/settings.json',
   'secrets:read-own': 'Read its own stored credentials',

@@ -4,7 +4,6 @@ import {
   formatAge,
   isValidLatitude,
   isValidLongitude,
-  nowIso,
   roundCoordinateForLog,
   toAppError,
 } from '@gca/shared';
@@ -171,7 +170,8 @@ class WeatherRuntime implements ModuleRuntime<WeatherSnapshot> {
     ]);
 
     const previous = this.#snapshot;
-    const at = nowIso();
+    // The injected clock, not the wall clock: staleness is measured against it.
+    const at = this.ctx.now().toISOString();
     const next: WeatherSnapshot = {
       capturedAt: at,
       conditions: previous?.conditions ?? null,

@@ -10,6 +10,7 @@ import {
   renderDualProgress,
   renderEmpty,
   renderError,
+  renderEvent,
   renderHero,
   renderWeather,
 } from './layouts/index.js';
@@ -65,6 +66,8 @@ function renderLayoutBody(frame: ModuleFrame | ModuleFrameDraft, theme: Theme): 
       return renderAircraft(frame.layout, theme, frame.accent);
     case 'weather':
       return renderWeather(frame.layout, theme, frame.accent);
+    case 'event':
+      return renderEvent(frame.layout, theme, frame.accent);
     case 'empty':
       return renderEmpty(frame.layout, theme, frame.accent);
     case 'error':

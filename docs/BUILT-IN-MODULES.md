@@ -1,6 +1,6 @@
 # Built-in modules
 
-Three modules ship in this release. All are ordinary `AppModule` implementations with
+Four modules ship in this release. All are ordinary `AppModule` implementations with
 no privileged access to the server — see [MODULES.md](MODULES.md) for the contract they
 are written against.
 
@@ -238,3 +238,80 @@ never go to AirGradient: your own monitor is read through your token, a public o
 its ID, and the nearest-monitor search measures distances on this machine. Coordinates
 are rounded before they reach any log, as for ADS-B. See
 [SECURITY.md](SECURITY.md#location-privacy).
+
+---
+
+## Calendar
+
+Your next meeting, from a calendar's secret iCal link, and a reminder before it starts.
+
+| View         | Shows                                                                                                                                       |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Next meeting | A countdown (`in 1h 25m`, `Thu 11:00`), the title, time and room or call service, and what comes after. During a meeting, `ends in 20 min`. |
+| Reminder     | Interrupts the display before a meeting: `in 9 min`, in amber. Not a playlist item.                                                         |
+
+Add one instance per calendar; work and personal are two links, so two instances.
+
+### Getting the link
+
+| Provider                | Where                                                                               |
+| ----------------------- | ----------------------------------------------------------------------------------- |
+| Google Calendar         | Settings → your calendar → **Integrate calendar** → _Secret address in iCal format_ |
+| Outlook / Microsoft 365 | Settings → Calendar → **Shared calendars** → _Publish a calendar_ → the ICS link    |
+| iCloud                  | Calendar app → share the calendar → **Public Calendar** → copy the `webcal://` link |
+| Fastmail, Proton        | The calendar's sharing settings → the iCal / ICS link                               |
+
+Paste it into **Calendar link** and press **Test calendar link**: it reads the link on
+screen, before saving, and lists the next few meetings. Work accounts sometimes have
+publishing turned off by an administrator; the test says so when the provider refuses.
+
+Links are accepted only from those providers' calendar hosts. Allowing any URL would make
+this a fetch-anything permission, which is a separate decision from adding a calendar.
+
+### Reminders
+
+**Remind me** sets the lead time: 10 minutes by default, from 1 to 60. **Reminder stays**
+chooses what happens then:
+
+- **Until the meeting starts** (default) — the countdown holds the display and the
+  playlist resumes when the meeting begins. The scheduler holds any interruption for at
+  most ten minutes, so a longer lead time returns to the playlist early; the settings
+  page warns about this.
+- **For one minute** — shows once, then the playlist carries on.
+
+How it works, and why:
+
+- **Reminders are punctual even with a slow poll.** The feed is read every five minutes
+  (configurable), but reminders are checked against the cached meetings every 15
+  seconds, so a reminder is at most 15 seconds late, not five minutes.
+- **A reminder only reaches displays whose playlist includes the calendar.** That is
+  how every interruption in this app works: a module cannot take over a display it was
+  not given.
+- **It survives the per-device cooldown.** If another interruption ended a moment ago,
+  the first attempt is dropped; the module asks again on each check, so the reminder
+  appears within 30 seconds at worst.
+- **It keeps working offline.** If the link stops answering, reminders continue from the
+  meetings already read, for up to a day.
+- **One at a time.** When two meetings start together, the reminder is for the sooner;
+  the next one is reminded once the first starts.
+
+### How fresh is it?
+
+The display asks; the provider does not push. A meeting added in your calendar appears
+after the next check — **and** after the provider refreshes the link, which some do less
+often than every few minutes. If a meeting added at short notice matters, press
+**Test calendar link** after adding one and see how long it takes to appear; that
+measures your provider rather than guessing at it.
+
+### What is shown and what is left out
+
+- **Recurring meetings** are expanded properly: daily and weekly rules, skipped dates,
+  and single occurrences moved or cancelled, in the time zone the meeting was created
+  in. Times are shown in the app's time zone (Settings).
+- **All-day entries are left out** — holidays and out-of-office blocks are not meetings.
+- **Cancelled meetings are left out.**
+- **Declined meetings are left out** if you fill in **Your email**. It is matched against
+  the attendee list in the feed on this machine and sent nowhere. Not every provider
+  includes attendees in the link (Outlook's published calendars often do not).
+- **Where:** a room if the meeting has one; otherwise the call service read from its
+  links — Google Meet, Teams, Zoom, Webex and others.

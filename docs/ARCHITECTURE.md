@@ -20,6 +20,7 @@ packages/
   module-claude-usage/
   module-adsb-monitor/
   module-weather/
+  module-calendar/
 tools/
   claude-statusline-bridge/  Host-side bridge CLI
   scripts/                   Fixture rendering helper
@@ -69,8 +70,8 @@ tested deterministically without timers.
 
 ## Attention interruption
 
-When ADS-B sees an aircraft cross the overhead threshold it raises an attention event
-with a de-duplication key. The scheduler then:
+When ADS-B sees an aircraft cross the overhead threshold, or a meeting comes within its
+reminder lead time, the module raises an attention event with a de-duplication key. The scheduler then:
 
 1. Interrupts only devices whose playlist already contains that module.
 2. Honours a per-device cooldown so a stream of aircraft cannot thrash the display.

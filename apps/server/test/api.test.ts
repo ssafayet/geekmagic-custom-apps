@@ -29,7 +29,7 @@ describe('core API', () => {
     expect(response.statusCode).toBe(200);
     expect(jsonBody(response)).toMatchObject({
       status: 'ok',
-      modules: { loaded: ['claude-usage', 'adsb-monitor', 'weather'], rejected: [] },
+      modules: { loaded: ['claude-usage', 'adsb-monitor', 'weather', 'calendar'], rejected: [] },
     });
   });
 
@@ -429,6 +429,7 @@ describe('module API', () => {
       'claude-usage',
       'adsb-monitor',
       'weather',
+      'calendar',
     ]);
     // The generic form has everything it needs from the definition alone.
     for (const definition of definitions) {

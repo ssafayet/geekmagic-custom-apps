@@ -60,18 +60,23 @@ interruption instead.
 Permissions are enforced, not advisory. A module receives an HTTP client that can
 reach only the hosts its permissions allow, and host services only when declared.
 
-| Permission                   | Grants                                           |
-| ---------------------------- | ------------------------------------------------ |
-| `network:anthropic`          | HTTPS to `api.anthropic.com`                     |
-| `network:adsb-fi`            | HTTPS to `opendata.adsb.fi`                      |
-| `network:opensky`            | HTTPS to `opensky-network.org` and its auth host |
-| `network:adsbdb`             | HTTPS to `api.adsbdb.com`                        |
-| `network:open-meteo`         | HTTPS to `api.open-meteo.com` and its AQ host    |
-| `network:airgradient`        | HTTPS to `api.airgradient.com`                   |
-| `host:claude-cli-status`     | `ctx.host.claudeCli`, `ctx.host.bridgeInbox`     |
-| `host:claude-settings-write` | `ctx.host.claudeSettings`                        |
-| `secrets:read-own`           | `ctx.secrets` for declared keys                  |
-| `location:configured`        | Descriptive; shown in the catalog                |
+| Permission                   | Grants                                            |
+| ---------------------------- | ------------------------------------------------- |
+| `network:anthropic`          | HTTPS to `api.anthropic.com`                      |
+| `network:adsb-fi`            | HTTPS to `opendata.adsb.fi`                       |
+| `network:opensky`            | HTTPS to `opensky-network.org` and its auth host  |
+| `network:adsbdb`             | HTTPS to `api.adsbdb.com`                         |
+| `network:open-meteo`         | HTTPS to `api.open-meteo.com` and its AQ host     |
+| `network:airgradient`        | HTTPS to `api.airgradient.com`                    |
+| `network:calendar-feeds`     | HTTPS to the major calendar providers' iCal hosts |
+| `host:claude-cli-status`     | `ctx.host.claudeCli`, `ctx.host.bridgeInbox`      |
+| `host:claude-settings-write` | `ctx.host.claudeSettings`                         |
+| `secrets:read-own`           | `ctx.secrets` for declared keys                   |
+| `location:configured`        | Descriptive; shown in the catalog                 |
+
+An entry written `*.example.com` matches any subdomain of `example.com` and never the
+domain itself. It exists for iCloud, which serves calendars from numbered hosts; use it
+only where one operator alone controls every subdomain.
 
 A new outbound host means a new permission plus an entry in `PERMISSION_HOSTS`
 (`packages/core/src/scoped-services.ts`). That is deliberate: adding a network
@@ -192,7 +197,7 @@ Modules describe content; the renderer owns typography, spacing and encoding.
 }
 ```
 
-Layouts: `hero`, `dual-progress`, `aircraft`, `weather`, `empty`, `error`. The runtime fills in
+Layouts: `hero`, `dual-progress`, `aircraft`, `weather`, `event`, `empty`, `error`. The runtime fills in
 `fingerprint` and `validUntil`.
 
 Two constraints the renderer enforces and modules should respect:

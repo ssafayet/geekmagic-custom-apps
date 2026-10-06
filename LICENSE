@@ -37,7 +37,7 @@ See the LICENSE files alongside the font files for the full text.
 
 ---
 
-The weather icon paths in packages/renderer/src/icons.ts are adapted from
+The weather and calendar icon paths in packages/renderer/src/icons.ts are adapted from
 Lucide (https://lucide.dev), distributed under the ISC License:
 
   Copyright (c) for portions of Lucide are held by Cole Bemis 2013-2022 as part

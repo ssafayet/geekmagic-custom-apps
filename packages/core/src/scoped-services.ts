@@ -15,6 +15,9 @@ import type { Store } from '@gca/database';
  *
  * A module cannot reach anything not listed here for a permission it holds, which is
  * what turns `network:anthropic` from documentation into an actual constraint.
+ *
+ * An entry starting `*.` matches any subdomain of what follows, and never the domain
+ * itself. Use it only where one operator serves from numbered hosts it alone controls.
  */
 const PERMISSION_HOSTS: Partial<Record<ModulePermission, string[]>> = {
   'network:anthropic': ['api.anthropic.com'],
@@ -27,6 +30,18 @@ const PERMISSION_HOSTS: Partial<Record<ModulePermission, string[]>> = {
   'network:open-meteo': ['api.open-meteo.com', 'air-quality-api.open-meteo.com'],
   // The cloud API for a user's own AirGradient monitors; needs their token.
   'network:airgradient': ['api.airgradient.com'],
+  // The hosts that serve secret iCal links for the major calendar providers. A link
+  // anywhere else is refused: an arbitrary URL would turn this into a fetch-anything
+  // permission, which is a separate decision. iCloud serves from p01..pNN-caldav.
+  'network:calendar-feeds': [
+    'calendar.google.com',
+    'outlook.office365.com',
+    'outlook.office.com',
+    'outlook.live.com',
+    '*.icloud.com',
+    'user.fm',
+    'calendar.proton.me',
+  ],
 };
 
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -61,7 +76,7 @@ export class PermissionScopedHttpClient implements ScopedHttpClient {
         `Module "${this.moduleId}" attempted a non-HTTPS request to ${parsed.hostname}.`,
       );
     }
-    if (!this.allowedHosts.includes(parsed.hostname)) {
+    if (!isHostAllowed(this.allowedHosts, parsed.hostname)) {
       throw new AppError(
         'VALIDATION_FAILED',
         `Module "${this.moduleId}" is not permitted to contact ${parsed.hostname}.`,
@@ -117,6 +132,17 @@ export class PermissionScopedHttpClient implements ScopedHttpClient {
       options.signal?.removeEventListener('abort', onAbort);
     }
   }
+}
+
+export function isHostAllowed(allowedHosts: readonly string[], hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  return allowedHosts.some((entry) => {
+    if (!entry.startsWith('*.')) return entry === host;
+    // `*.icloud.com` matches `p52-caldav.icloud.com`, not `icloud.com` and not
+    // `evil-icloud.com`: the leading dot is part of the required suffix.
+    const suffix = entry.slice(1);
+    return host.endsWith(suffix) && host.length > suffix.length;
+  });
 }
 
 function parseUrl(url: string, moduleId: string): URL {

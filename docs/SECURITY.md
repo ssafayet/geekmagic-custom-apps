@@ -121,6 +121,23 @@ ADS-B and Weather coordinates are treated as sensitive:
   monitor is read by its location ID, and the nearest-monitor search downloads the
   public list and measures distance locally.
 
+## Calendar links
+
+A secret iCal link is a credential: anyone holding it can read every event on the
+calendar. It is handled like one:
+
+- It is stored in the encrypted vault, never in `settings_json`, and the API returns only
+  whether one is saved and its last four characters.
+- It is never logged. The module never logs the URL, and the HTTP client names only the
+  host in its errors.
+- It can only be fetched from the major providers' calendar hosts (Google, Outlook,
+  iCloud, Fastmail, Proton). Any other link is refused before a request is made.
+- Meeting titles and rooms for the next seven days are kept in the module's snapshot in
+  `app.db`, as plain JSON, so the display survives a restart. Treat a copy of the
+  database as revealing your upcoming meetings. The diagnostics export leaves snapshots
+  out entirely, and reminders write only "Meeting reminder" to the audit log, never a
+  title.
+
 ## Destructive operations
 
 Anything that removes user data uses a two-step confirmation bound to the **specific**

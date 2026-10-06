@@ -20,6 +20,7 @@ COPY packages/core/package.json packages/core/
 COPY packages/database/package.json packages/database/
 COPY packages/device-core/package.json packages/device-core/
 COPY packages/module-adsb-monitor/package.json packages/module-adsb-monitor/
+COPY packages/module-calendar/package.json packages/module-calendar/
 COPY packages/module-claude-usage/package.json packages/module-claude-usage/
 COPY packages/module-sdk/package.json packages/module-sdk/
 COPY packages/module-weather/package.json packages/module-weather/
