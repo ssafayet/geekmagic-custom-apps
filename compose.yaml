@@ -1,6 +1,6 @@
 # docker compose up -d --build
 #
-# Works as-is on Docker Desktop (macOS, Windows), OrbStack and Linux. Every value
+# Works as-is on Docker Desktop for macOS, OrbStack and Linux (Windows is untested). Every value
 # below can be overridden from a `.env` file next to this one; none is required.
 # See .env.example and docs/DEPLOYMENT.md#docker.
 name: geekmagic-custom-apps

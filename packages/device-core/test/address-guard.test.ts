@@ -111,8 +111,8 @@ describe('resolveAndValidate', () => {
   });
 
   it('accepts a private literal and pins the resolved address', async () => {
-    const target = await resolveAndValidate('192.168.4.21', 80);
-    expect(target).toMatchObject({ address: '192.168.4.21', port: 80, family: 4 });
+    const target = await resolveAndValidate('192.168.1.21', 80);
+    expect(target).toMatchObject({ address: '192.168.1.21', port: 80, family: 4 });
   });
 
   it('reports an unresolvable name as unreachable rather than blocked', async () => {

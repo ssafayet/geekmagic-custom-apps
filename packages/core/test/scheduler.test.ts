@@ -307,6 +307,25 @@ describe('refresh jobs', () => {
     await new Promise((resolve) => setTimeout(resolve, 80));
   });
 
+  it('keeps refreshing on schedule when jobs are rebuilt during a refresh', async () => {
+    const h = setup();
+    const module = h.addModule('slow', [draft('slow-frame', 'Slow')], { refreshDelayMs: 20 });
+    h.scheduler.rebuildJobs();
+
+    h.advance(10_000);
+    await h.scheduler.tick();
+    expect(module.refreshCount).toBe(1);
+
+    // A settings save rebuilds the jobs while that refresh is still in flight.
+    h.scheduler.rebuildJobs();
+    await new Promise((resolve) => setTimeout(resolve, 40));
+
+    h.advance(30_000);
+    await h.scheduler.tick();
+    expect(module.refreshCount).toBe(2);
+    await new Promise((resolve) => setTimeout(resolve, 40));
+  });
+
   it('backs a failing module off instead of hammering it', async () => {
     const h = setup();
     const module = h.addModule('flaky', [draft('flaky-frame', 'Flaky')]);

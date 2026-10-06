@@ -91,7 +91,7 @@ adsb.fi returns nothing where OpenSky returns traffic.
 so the poll interval — not a rate limit — decides whether a deployment runs out by
 lunchtime:
 
-| Credentials          | Daily requests | Slowest safe poll |
+| Credentials          | Daily requests | Fastest safe poll |
 | -------------------- | -------------- | ----------------- |
 | Anonymous            | ~400           | ~238 s            |
 | Client ID and secret | ~4,000         | ~24 s             |

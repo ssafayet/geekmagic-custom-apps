@@ -1,8 +1,8 @@
 # The Claude Code status-line bridge
 
 Claude Code can pipe a JSON status-line payload to a command on every render. The
-bridge receives that payload, keeps only the approved fields, and forwards them to
-this server on loopback.
+bridge forwards that payload to this server on loopback, and the server keeps only the
+approved fields — see [What is forwarded](#what-is-forwarded).
 
 There is deliberately no code path that reads Claude Code's credentials or calls the
 private endpoint behind `/usage`.
@@ -21,6 +21,7 @@ The module reads that as a **fallback**, whenever the bridge inbox is empty:
 | Bridge (status line)          | Free  | No — waits for the next render | Yes, bridge runs on the host |
 | `claude -p "/usage"` fallback | Free  | Yes                            | No — needs the CLI locally   |
 | `pnpm bridge:push`            | Free  | Yes                            | Yes — reads the CLI, posts   |
+| `tools/claude-bridge.sh push` | Free  | Yes                            | Yes — the same, without Node |
 
 The bridge stays the primary source: it needs no process spawn and no extra network
 call. The fallback exists because the inbox is in memory, so a restart empties it, and
@@ -68,9 +69,9 @@ absolute path to the build. Claude Code runs it from whatever project is open, s
 must not depend on anything resolving from the current directory. Moving or deleting
 the checkout breaks it; re-run `pnpm bridge:install` from the new location.
 
-The web UI's **Install status-line bridge** action does the same thing in one click.
-The command line exists because in Docker the server runs in a container while Claude
-Code runs on the host, so the bridge has to be installable there.
+On a native install the web UI's **Install status-line bridge** action does the same
+thing in one click. In Docker the server cannot reach the host's Claude Code, so that
+action points at the host-side script instead; see [Docker](#docker).
 
 Install is idempotent: running it again rewrites the same status line, reuses the
 existing token, and will not chain the bridge to its own previous invocation, so it
@@ -152,9 +153,10 @@ node path with the output of `which node`, and the checkout path with yours:
 </dict></plist>
 ```
 
-launchd does not read `.env`. If the server runs in Docker, run `pnpm bridge:push
---token "$GCA_BRIDGE_TOKEN"` once first: the token is saved to the token file the agent
-then reads.
+launchd does not read `.env`. If the server runs in Docker, run `pnpm bridge:push` once
+from the checkout first: it reads `GCA_BRIDGE_TOKEN` from `.env` and saves it to the
+token file the agent then reads. Without Node on the host,
+[`tools/claude-bridge.sh install-agent`](#docker) sets up the same timer instead.
 
 ```bash
 launchctl load ~/Library/LaunchAgents/dev.gca.claude-push.plist
@@ -166,34 +168,58 @@ because none of that exists outside a render.
 
 ### Docker
 
-The container cannot see your Claude Code, so the bridge runs on the host, from the
-same checkout `compose.yaml` lives in. Two things have to line up.
+The container cannot see your Claude Code, so usage has to be forwarded from the host.
+[`tools/claude-bridge.sh`](../tools/claude-bridge.sh) does that with `sh`, `curl` and
+`jq` — no Node or pnpm on the host. macOS 15 and later ship `jq`; for `push` alone,
+`plutil` or `python3` work too.
 
-**The token.** The host bridge cannot read the token file inside the volume, so the
-two sides would generate different secrets and every post would be rejected. Decide
-one up front and give it to both — `.env` does that, since `docker compose` and the
-`pnpm bridge:*` scripts all read it.
+```bash
+# 1. One shared secret, in .env next to compose.yaml.
+echo "GCA_BRIDGE_TOKEN=$(openssl rand -hex 32)" >> .env
+
+# 2. The container reads it when it is created.
+docker compose up -d --build
+
+# 3. On the host: forward terminal sessions, and push on a timer for the VS Code extension.
+tools/claude-bridge.sh install
+tools/claude-bridge.sh install-agent
+tools/claude-bridge.sh doctor
+```
+
+| Command           | Does                                                                                |
+| ----------------- | ----------------------------------------------------------------------------------- |
+| `install`         | Hook the status line in `~/.claude/settings.json`; a previous one still shows       |
+| `uninstall`       | Put the previous status line back                                                   |
+| `install-agent`   | Run `push` every 5 minutes: a launchd agent on macOS, a systemd user timer on Linux |
+| `uninstall-agent` | Remove that timer                                                                   |
+| `push`            | Read usage from the Claude Code cache and post it now                               |
+| `doctor`          | Check the token, the JSON reader, `claude`, the cache, the hooks and the server     |
+
+Both hooks are needed for the same reason as on a native install: the status line fires
+only where one is drawn — terminal `claude`, not the VS Code extension — and the timer
+covers the rest. It refreshes the cache with `claude -p /usage` at most once per five
+minutes, the same limit the server keeps.
+
+**The token.** The script reads `GCA_BRIDGE_TOKEN` from the `.env` beside it on every
+run, the same line the container reads, so the two sides cannot drift. Compose reads
+`.env` only when it _creates_ a container: after changing the token run
+`docker compose up -d`. `docker compose restart` keeps the old one, and `doctor` then
+reports a token mismatch. The token must be at least 16 characters; a shorter one fails
+at startup rather than being accepted weakly.
 
 **The source address.** The endpoint is loopback-only by default, and Docker's NAT
 rewrites the source of a post from the host. `compose.yaml` sets
 `GCA_BRIDGE_ALLOW_PRIVATE_SOURCES=true` for that reason; the host-network override
 does not need it.
 
-```bash
-# 1. One shared secret, in .env next to compose.yaml.
-cp .env.example .env
-echo "GCA_BRIDGE_TOKEN=$(openssl rand -hex 32)" >> .env
+**Why not mount `~/.claude.json` into the container instead?** Claude Code replaces that
+file on every write, so a single-file bind mount keeps showing the version it started
+with. The file also holds account details and your project list, which the container
+has no reason to see.
 
-# 2. The container takes it from .env.
-docker compose up -d --build
-
-# 3. The host bridge takes it from the same .env.
-pnpm install && pnpm build
-pnpm bridge:install
-```
-
-The token must be at least 16 characters; a shorter one fails at startup rather than
-being accepted weakly. Changed it later? Restart the container and re-run step 3.
+With Node on the host, the `pnpm bridge:*` commands above work against a container too,
+reading the same `.env`. Use one bridge or the other: the script refuses to install over
+the Node bridge.
 
 | Networking                               | `GCA_BRIDGE_ALLOW_PRIVATE_SOURCES` | Verified |
 | ---------------------------------------- | ---------------------------------- | -------- |
@@ -223,7 +249,7 @@ The written command points at a config file, not at the token:
 {
   "statusLine": {
     "type": "command",
-    "command": "/usr/local/bin/node /opt/gca/bridge.js run --config /data/claude-bridge.json",
+    "command": "/usr/local/bin/node /Users/you/geekmagic-custom-apps/tools/claude-statusline-bridge/dist/cli.js run --config \"/Users/you/Library/Application Support/geekmagic-custom-apps/claude-bridge.json\"",
     "padding": 0
   }
 }
@@ -350,6 +376,7 @@ call is ever made to test a key.**
 | Bridge installed but nothing arrives | Check the server port matches `--port`, and that the token file is readable by the user Claude Code runs as. |
 | Uninstall reports a conflict         | Your status line changed after install. Edit `~/.claude/settings.json` by hand.                              |
 | Claude binary not found              | Expected in Docker or under a system account. Install the bridge on the host.                                |
+| Docker: _No usage received_          | Run `tools/claude-bridge.sh doctor` on the host.                                                             |
 
 Check state without the UI:
 

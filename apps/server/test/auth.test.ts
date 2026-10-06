@@ -333,6 +333,32 @@ describe('sessions', () => {
     expect(secureOf(proxied)).toBe(true);
   });
 
+  // Without GCA_TRUST_PROXY the forwarded protocol is ignored, but the public base
+  // URL still says the browser is on HTTPS when it uses that name.
+  it('marks cookies Secure for the HTTPS public name even without a trusted proxy', async () => {
+    const target = await exposedApp({ publicBaseUrl: 'https://panel.example.org' });
+    harness = target;
+    await bootstrap(target);
+
+    const login = (host: string) =>
+      target.app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/login',
+        headers: { host },
+        payload: { password: PASSWORD },
+      });
+    const viaPublicName = await login('panel.example.org');
+    const viaLan = await login('192.168.1.20:3210');
+
+    const secureOf = (response: typeof viaLan) =>
+      (response.cookies as Array<{ name: string; secure?: boolean }>).find(
+        (cookie) => cookie.name === 'gca_session',
+      )?.secure;
+    expect(viaPublicName.statusCode).toBe(200);
+    expect(secureOf(viaPublicName)).toBe(true);
+    expect(secureOf(viaLan)).not.toBe(true);
+  });
+
   it('rate-limits password attempts per address', async () => {
     harness = await exposedApp();
     await bootstrap(harness);

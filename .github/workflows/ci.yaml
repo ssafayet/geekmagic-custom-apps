@@ -39,6 +39,10 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      # The Docker bridge runs under whatever /bin/sh the host has; dash here.
+      - name: Lint the shell bridge
+        run: shellcheck -s sh -S warning tools/claude-bridge.sh
+
       - name: Build
         run: pnpm build
 
@@ -87,16 +91,27 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # Proves the bundled fonts render without system fontconfig, and that the
-      # UI is served from the flattened deploy layout.
+      # Proves the bundled fonts render without system fontconfig, that the UI is
+      # served from the flattened deploy layout, and that the host-side shell bridge
+      # reaches the container through Docker's NAT as compose.yaml configures it.
       - name: Smoke test the image
+        env:
+          GCA_BRIDGE_TOKEN: ci-bridge-token-0123456789
         run: |
-          docker run -d --name gca -p 3210:3210 geekmagic-custom-apps:ci
+          docker run -d --name gca -p 127.0.0.1:3210:3210 \
+            -e GCA_BRIDGE_TOKEN -e GCA_BRIDGE_ALLOW_PRIVATE_SOURCES=true \
+            geekmagic-custom-apps:ci
           for i in $(seq 1 60); do
             curl -sf http://127.0.0.1:3210/api/v1/health >/dev/null && break
             sleep 1
           done
           curl -sf http://127.0.0.1:3210/api/v1/health | tee /dev/stderr | grep -q '"status":"ok"'
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3210/)" = "200"
-          docker logs gca
-          docker rm -f gca
+          echo '{"rate_limits":{"five_hour":{"used_percentage":12,"resets_at":"2099-01-01T00:00:00Z"}}}' \
+            | sh tools/claude-bridge.sh statusline
+          curl -sf -H "Authorization: Bearer $GCA_BRIDGE_TOKEN" \
+            http://127.0.0.1:3210/internal/claude/status | tee /dev/stderr | grep -q '"lastReceivedAt":"'
+
+      - name: Container logs
+        if: always()
+        run: docker logs gca || true

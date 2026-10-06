@@ -60,6 +60,8 @@ jobs:
           generate_release_notes: true
 
   image:
+    # A tag whose tests fail must not publish `latest`.
+    needs: artifacts
     runs-on: ubuntu-latest
     permissions:
       contents: read

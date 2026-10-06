@@ -70,6 +70,18 @@ describe('login behind a reverse proxy', () => {
     );
   });
 
+  // A tunnel needs no trusted hop, so naming its public host may be the only sign of it.
+  it('is required by default once an extra host name is allowed', () => {
+    expect(loadConfig({ GCA_ALLOWED_HOSTS: 'panel.example.org' }).authRequired).toBe(true);
+  });
+
+  it('can be switched off explicitly when an extra host name is allowed', () => {
+    expect(
+      loadConfig({ GCA_ALLOWED_HOSTS: 'panel.example.org', GCA_AUTH_REQUIRED: 'false' })
+        .authRequired,
+    ).toBe(false);
+  });
+
   it('still needs nothing for a plain loopback install', () => {
     expect(loadConfig({}).authRequired).toBe(false);
   });

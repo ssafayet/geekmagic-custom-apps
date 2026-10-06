@@ -120,11 +120,11 @@ export const AIR_QUALITY_SAMPLE = {
 };
 
 export const PUBLIC_MONITOR_SAMPLE = {
-  locationId: 178634,
-  locationName: 'RAJUK Uttara Apartment Project, Sector - 18, Uttara',
-  publicLocationName: 'RAJUK Uttara Apartment Project, Sector - 18, Uttara',
-  latitude: 23.856237,
-  longitude: 90.356837,
+  locationId: 4217,
+  locationName: 'Example School, Sector 4',
+  publicLocationName: 'Example School, Sector 4',
+  latitude: 23.8103,
+  longitude: 90.4125,
   offline: false,
   pm01: 69.0,
   pm02: 120.3,

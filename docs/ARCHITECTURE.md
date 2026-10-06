@@ -3,7 +3,7 @@
 ## Package layout
 
 Dependencies point one way: routes → services → core → (database, renderer, device-core).
-Nothing points back up, and module packages depend only on the SDK.
+Nothing points back up, and module packages depend only on the SDK and `shared`.
 
 ```
 apps/
@@ -11,7 +11,7 @@ apps/
   web/                     React management UI
 packages/
   shared/                  Error codes, DTOs, time, geo, redaction
-  module-sdk/              The module contract. Modules depend on this and nothing else.
+  module-sdk/              The module contract. Modules depend on this and `shared`.
   secrets/                 AES-256-GCM vault and master key handling
   database/                SQLite schema, migrations, repositories
   renderer/                Frame model → SVG → 240×240 JPEG, bundled fonts
@@ -113,20 +113,18 @@ SQLite via `better-sqlite3` with numbered migrations applied inside transactions
 pre-migration file copy. Repositories return typed records; the `Store` facade is the
 only entry point, and modules never see it.
 
-> **Deviation from the specification:** the spec suggested Drizzle ORM. This uses
-> hand-written SQL behind typed repositories instead. The repository boundary is what
-> the rest of the system depends on, the schema is small and stable, and dropping the
-> ORM removes a layer between the code and the queries it runs.
+**Why no ORM:** hand-written SQL behind typed repositories. The repository boundary is
+what the rest of the system depends on, the schema is small and stable, and leaving
+out an ORM removes a layer between the code and the queries it runs.
 
 ## Rendering
 
-> **Deviation from the specification:** the spec named Sharp for SVG rasterization.
-> Sharp rasterizes SVG through librsvg, which resolves fonts through system
-> fontconfig — so output depends on what fonts the host happens to have. This uses
-> `@resvg/resvg-js` with explicitly loaded bundled font files for rasterization, and
-> keeps Sharp for the Lanczos downsample and JPEG encode. A container renders
-> byte-identically to a laptop, which is what makes the visual regression suite
-> meaningful.
+**Why resvg rather than Sharp for SVG:** Sharp rasterizes SVG through librsvg, which
+resolves fonts through system fontconfig — so output depends on what fonts the host
+happens to have. This uses `@resvg/resvg-js` with explicitly loaded bundled font files
+for rasterization, and keeps Sharp for the Lanczos downsample and JPEG encode. A
+container renders byte-identically to a laptop, which is what makes the visual
+regression suite meaningful.
 
 Text is measured with the same font files that get rasterized, so ellipsis and
 shrink-to-fit decisions match what is actually drawn. Measurement is best-effort:

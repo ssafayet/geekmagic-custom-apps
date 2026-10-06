@@ -25,6 +25,8 @@ describe('Host header', () => {
     });
 
     expect(response.statusCode).toBe(421);
+    // The public base URL comes first, because it also turns on the login.
+    expect(response.json().error.message).toMatch(/set GCA_PUBLIC_BASE_URL/);
   });
 
   // None of these can be pointed at this machine by an outside party, so a local

@@ -25,7 +25,6 @@
     "bridge:push": "node --env-file-if-exists=.env tools/claude-statusline-bridge/dist/cli.js push",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:ui": "vitest run --project web",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "clean": "find . -name 'dist' -type d -not -path './node_modules/*' -not -path '*/node_modules/*' -prune -exec rm -rf {} + ; find . -name '*.tsbuildinfo' -not -path '*/node_modules/*' -delete"

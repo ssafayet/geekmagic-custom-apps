@@ -101,19 +101,38 @@ To keep it running across reboots, see [launchd and systemd](docs/DEPLOYMENT.md#
 
 ### Docker
 
+No Node or pnpm needed: just Docker, plus `curl` and `jq` on the host for Claude Usage
+(macOS 15 and later ship both).
+
 ```bash
-docker compose up -d --build
+git clone https://github.com/ssafayet/geekmagic-custom-apps.git
+cd geekmagic-custom-apps
+echo "GCA_BRIDGE_TOKEN=$(openssl rand -hex 32)" > .env   # only if you want Claude Usage
+docker compose up -d --build            # then open http://localhost:3210
+
+# Only if you want Claude Usage on the display:
+tools/claude-bridge.sh install
+tools/claude-bridge.sh install-agent
+tools/claude-bridge.sh doctor
 ```
 
-Open <http://localhost:3210>. Works as-is on Docker Desktop, OrbStack and Linux;
-`.env` is optional and read automatically. Two things differ from a native install:
+Works as-is on Docker Desktop, OrbStack and Linux. Without Claude Usage,
+`docker compose up -d --build` is all you need, and `.env` is optional. The `echo`
+overwrites `.env`, so if you already have one, add the token line to it instead.
+
+Two things differ from a native install:
 
 - **Enter the display's IP by hand.** The container sees Docker's network, not your
   LAN, so the subnet scan cannot find it. On Linux,
   [host networking](docs/DEPLOYMENT.md#docker) lets the scan work.
-- **Claude Usage needs the bridge** on the host, because the container cannot see your
-  Claude Code. Set the same `GCA_BRIDGE_TOKEN` in `.env` for both sides; see
-  [CLAUDE-BRIDGE.md](docs/CLAUDE-BRIDGE.md#docker).
+- **Claude Usage is forwarded from the host**, because the container cannot see your
+  Claude Code. `install` hooks Claude Code's status line, which updates on every
+  request in terminal sessions. `install-agent` pushes usage every 5 minutes, which
+  covers the VS Code extension, since it never draws a status line. `doctor` checks
+  the whole chain. See [CLAUDE-BRIDGE.md](docs/CLAUDE-BRIDGE.md#docker).
+
+After editing `.env`, run `docker compose up -d` again: Compose reads it only when it
+creates the container, so `docker compose restart` keeps the old values.
 
 ## Turning on the modules
 
@@ -139,7 +158,10 @@ pnpm bridge:install
 
 Your existing status line keeps working and is restored byte-for-byte by
 `pnpm bridge:uninstall`; no credentials are read and no prompt content is collected.
-`pnpm bridge:doctor` explains anything that is not arriving.
+`pnpm bridge:doctor` explains anything that is not arriving. The VS Code extension never
+draws a status line, so if you use it, keep `pnpm bridge:push --watch` running as well.
+In Docker, use `tools/claude-bridge.sh` instead —
+[CLAUDE-BRIDGE.md](docs/CLAUDE-BRIDGE.md#docker).
 
 **Weather** needs only a location. Conditions come from
 [Open-Meteo](https://open-meteo.com/), free with no account for non-commercial use. Air
@@ -196,7 +218,7 @@ Full threat model: [docs/SECURITY.md](docs/SECURITY.md).
 ## Contributing
 
 ```bash
-pnpm typecheck && pnpm test
+pnpm typecheck && pnpm build && pnpm test
 ```
 
 Rendering and device behaviour are both verifiable without hardware — see
@@ -215,7 +237,8 @@ It prints a new setup code; restart the server and choose a new password in the 
 
 MIT. Device protocol behaviour was derived from the MIT-licensed
 [adrienbrault/geekmagic-hacs](https://github.com/adrienbrault/geekmagic-hacs); bundled
-fonts are under the SIL Open Font License. See [LICENSE](LICENSE).
+fonts are under the SIL Open Font License. See [LICENSE](LICENSE) and
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
 This is an independent project. It is not affiliated with or endorsed by GeekMagic or
 Anthropic; product names are used only to say what it works with.

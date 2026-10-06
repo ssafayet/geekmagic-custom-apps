@@ -29,7 +29,8 @@ export interface AppConfig {
   trustProxy: false | string[];
   /**
    * Extra Host names the server answers to, beyond loopback, IP literals and
-   * private-network names. Needed only for a public DNS name in front of a proxy.
+   * private-network names. Needed only for a public DNS name in front of a proxy,
+   * so listing one turns the login on by default, as configuring the proxy does.
    */
   allowedHosts: string[];
   /** True when the server listens beyond loopback. */
@@ -40,6 +41,11 @@ export interface AppConfig {
    * nothing about reach; this is what does.
    */
   publishedHost: string | undefined;
+  /**
+   * Set by the Docker image. Claude Code and its settings live on the host there, out
+   * of this process's reach, so the server must not detect or edit its own copies.
+   */
+  inContainer: boolean;
   /**
    * Whether the browser API demands a signed-in session.
    *
@@ -72,6 +78,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const publicBaseUrl = env['GCA_PUBLIC_BASE_URL']?.trim() || undefined;
   const trustProxy = resolveTrustProxy(env['GCA_TRUST_PROXY']);
   const publishedHost = env['GCA_PUBLISHED_HOST']?.trim() || undefined;
+  const allowedHosts = parseList(env['GCA_ALLOWED_HOSTS']).map((entry) => entry.toLowerCase());
 
   return {
     host,
@@ -83,13 +90,16 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     bridgeAllowPrivateSources: env['GCA_BRIDGE_ALLOW_PRIVATE_SOURCES'] === 'true',
     publicBaseUrl,
     trustProxy,
-    allowedHosts: parseList(env['GCA_ALLOWED_HOSTS']).map((entry) => entry.toLowerCase()),
+    allowedHosts,
     isExposed: !isLoopbackBind(host),
     publishedHost,
+    inContainer: env['GCA_CONTAINER'] === 'true',
     authRequired: resolveAuthRequired(
       env['GCA_AUTH_REQUIRED'],
       publishedHost ?? host,
-      trustProxy !== false || publicBaseUrl !== undefined,
+      // An extra host name is only ever needed for a public name in front of a proxy
+      // or tunnel, so listing one is as sure a sign of a proxy as configuring it.
+      trustProxy !== false || publicBaseUrl !== undefined || allowedHosts.length > 0,
     ),
     version: APP_VERSION,
   };

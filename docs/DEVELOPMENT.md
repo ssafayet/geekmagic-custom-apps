@@ -11,7 +11,8 @@ No hardware is required to develop, test or review this project. See
 ## Layout
 
 A pnpm workspace. Dependencies point one way: routes → services → core → (database,
-renderer, device-core), and module packages depend only on the SDK. The full map is in
+renderer, device-core), and module packages depend only on the SDK and `shared`. The
+full map is in
 [ARCHITECTURE.md](ARCHITECTURE.md#package-layout).
 
 ## Everyday commands
@@ -19,10 +20,9 @@ renderer, device-core), and module packages depend only on the SDK. The full map
 ```bash
 pnpm install
 pnpm build                      # tsc -b plus the Vite build
-pnpm typecheck                  # tsc -b across the workspace
+pnpm typecheck                  # tsc -b across the server packages; the web app is checked by build
 pnpm test                       # unit, contract, integration and visual suites
 pnpm test:watch
-pnpm test:ui                    # web project only
 pnpm format                     # prettier --write .
 pnpm format:check               # what CI runs
 pnpm clean                      # removes dist and tsbuildinfo together

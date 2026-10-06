@@ -1,4 +1,7 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, describe, expect, it, onTestFinished } from 'vitest';
 import { DeviceSimulator } from '../../../packages/device-core/test/simulator/index.js';
 import { createTestApp, jsonBody, type TestApp } from './helpers.js';
 
@@ -416,6 +419,52 @@ describe('PRO album takeover', () => {
     );
     expect(after.albumManagementConsent).toBe(false);
   });
+
+  it('keeps the dashboard pushing after a restore fails', async () => {
+    harness = await createTestApp();
+    const { host } = await startSimulator({ profile: 'stock-pro', files: ['holiday.jpg'] });
+    const device = jsonBody<{ id: string }>(
+      await harness.app.inject({ method: 'POST', url: '/api/v1/devices', payload: { host } }),
+    );
+
+    const plan = jsonBody<{ confirmationToken: string }>(
+      await harness.app.inject({
+        method: 'GET',
+        url: `/api/v1/devices/${device.id}/takeover-album/plan`,
+      }),
+    );
+    await harness.app.inject({
+      method: 'POST',
+      url: `/api/v1/devices/${device.id}/takeover-album`,
+      payload: { confirmationToken: plan.confirmationToken },
+    });
+    const backups = jsonBody<Array<{ id: string }>>(
+      await harness.app.inject({ method: 'GET', url: `/api/v1/devices/${device.id}/backups` }),
+    );
+
+    // The device drops the connection part-way through putting the album back.
+    const adapter = harness.ctx.devices.require(device.id).adapter;
+    adapter.restoreUserContent = () => Promise.reject(new Error('connection reset'));
+
+    const restorePlan = jsonBody<{ confirmationToken: string }>(
+      await harness.app.inject({
+        method: 'GET',
+        url: `/api/v1/devices/${device.id}/restore/${backups[0]?.id}/plan`,
+      }),
+    );
+    const restore = await harness.app.inject({
+      method: 'POST',
+      url: `/api/v1/devices/${device.id}/restore/${backups[0]?.id}`,
+      payload: { confirmationToken: restorePlan.confirmationToken },
+    });
+    expect(restore.statusCode).toBeGreaterThanOrEqual(400);
+
+    const frame = await harness.app.inject({
+      method: 'POST',
+      url: `/api/v1/devices/${device.id}/test-frame`,
+    });
+    expect(jsonBody(frame)).toMatchObject({ status: 'uploaded' });
+  });
 });
 
 describe('module API', () => {
@@ -544,6 +593,34 @@ describe('module API', () => {
 
     expect(response.statusCode).toBe(403);
     expect(jsonBody(response)).toMatchObject({ error: { code: 'CONFIRMATION_REQUIRED' } });
+  });
+
+  it('points a container at the host bridge instead of editing its own settings', async () => {
+    // Were container mode ever ignored, the install below would be real: keep it away
+    // from the settings of whoever runs the suite.
+    const realHome = process.env['HOME'];
+    process.env['HOME'] = mkdtempSync(join(tmpdir(), 'gca-home-'));
+    onTestFinished(() => {
+      process.env['HOME'] = realHome;
+    });
+    harness = await createTestApp({ configOverrides: { inContainer: true } });
+    const instance = jsonBody<{ id: string }>(
+      await harness.app.inject({
+        method: 'POST',
+        url: '/api/v1/module-instances',
+        payload: { moduleId: 'claude-usage' },
+      }),
+    );
+
+    const response = await harness.app.inject({
+      method: 'POST',
+      url: `/api/v1/module-instances/${instance.id}/actions/claude.installBridge`,
+      payload: { confirm: true },
+    });
+
+    const result = jsonBody<{ ok: boolean; message: string }>(response);
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain('tools/claude-bridge.sh install');
   });
 
   it('runs a read-only action without confirmation', async () => {

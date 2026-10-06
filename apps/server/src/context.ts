@@ -120,7 +120,10 @@ export async function createAppContext(options: CreateContextOptions): Promise<A
     registry,
     events,
     logger,
-    host: { claudeCli, claudeSettings, bridgeInbox },
+    // In a container these would inspect and rewrite the container's own home
+    // directory, which Claude Code never reads. Withheld, the module says to install
+    // the bridge on the host instead.
+    host: config.inContainer ? { bridgeInbox } : { claudeCli, claudeSettings, bridgeInbox },
     timezone: settings.displayTimezone,
   });
 

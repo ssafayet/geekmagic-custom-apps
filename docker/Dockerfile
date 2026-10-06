@@ -45,6 +45,8 @@ ENV NODE_ENV=production
 ENV GCA_HOST=0.0.0.0
 ENV GCA_PORT=3210
 ENV GCA_DATA_DIR=/data
+# Claude Code runs on the host, so the server leaves its detection and settings alone.
+ENV GCA_CONTAINER=true
 
 # Fonts are bundled with the renderer, so no system font packages are needed.
 # tini reaps zombies and forwards signals so shutdown stays clean.
@@ -57,7 +59,6 @@ COPY --from=build /deploy ./
 # `pnpm deploy` flattens the server to /app/dist, so the UI goes to the
 # sibling `public` directory the server also looks in.
 COPY --from=build /app/apps/web/dist ./public
-COPY --from=build /app/tools/claude-statusline-bridge/dist ./tools/claude-statusline-bridge/dist
 
 # Run unprivileged; the data volume is chowned to the same uid.
 RUN mkdir -p /data && chown -R node:node /data /app

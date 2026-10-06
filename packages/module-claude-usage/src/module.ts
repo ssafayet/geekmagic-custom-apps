@@ -325,7 +325,7 @@ class ClaudeUsageRuntime implements ModuleRuntime<ClaudeUsageSnapshot> {
       return {
         ok: false,
         message:
-          'Bridge installation is not available in this deployment. Install it on the host with `pnpm bridge:install`.',
+          'This server runs in a container, which cannot reach Claude Code on your computer. Install the bridge on the host: `tools/claude-bridge.sh install`, and `tools/claude-bridge.sh install-agent` for the VS Code extension.',
         code: 'CLAUDE_BRIDGE_INSTALL_FAILED',
       };
     }
@@ -350,7 +350,8 @@ class ClaudeUsageRuntime implements ModuleRuntime<ClaudeUsageSnapshot> {
     if (!service) {
       return {
         ok: false,
-        message: 'Bridge management is not available in this deployment.',
+        message:
+          'This server runs in a container. Remove the bridge on the host: `tools/claude-bridge.sh uninstall`.',
         code: 'CLAUDE_BRIDGE_INSTALL_FAILED',
       };
     }
@@ -579,7 +580,9 @@ class ClaudeUsageRuntime implements ModuleRuntime<ClaudeUsageSnapshot> {
       headline: 'No usage received',
       detail: bridge?.installed
         ? 'Install the status-line bridge or add a usage credential'
-        : 'Run: pnpm bridge:doctor',
+        : this.ctx.host.claudeSettings
+          ? 'Run: pnpm bridge:doctor'
+          : 'Run: claude-bridge.sh doctor',
       code: 'CLAUDE_BRIDGE_NOT_CONNECTED',
       waiting: false,
     };

@@ -153,7 +153,7 @@ export const WEATHER_UI_SCHEMA: ModuleUiSchema = {
       order: 3,
       label: 'Location ID',
       widget: 'number',
-      placeholder: 'e.g. 178634',
+      placeholder: 'e.g. 4217',
       help: 'For your own monitor, leave empty to use the first one on the account. For a public monitor it is required. Test the source to list candidates.',
       visibleWhen: { field: 'airQualitySource', equals: ['airgradient', 'airgradient-public'] },
     },

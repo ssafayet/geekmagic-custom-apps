@@ -152,11 +152,19 @@ export class Scheduler {
         : manifest.refresh.defaultSeconds;
 
       const existing = this.#jobs.get(instance.record.id);
+      if (existing) {
+        // The existing job is updated rather than replaced: a refresh in flight closes
+        // over it and clears `running` when it settles, so a copy would stay marked
+        // running and the instance would never be refreshed on schedule again.
+        existing.intervalMs = seconds * 1000;
+        next.set(instance.record.id, existing);
+        continue;
+      }
       next.set(instance.record.id, {
         instanceId: instance.record.id,
         intervalMs: seconds * 1000,
-        nextRunAt: existing?.nextRunAt ?? now + Math.random() * STARTUP_JITTER_MS,
-        running: existing?.running ?? false,
+        nextRunAt: now + Math.random() * STARTUP_JITTER_MS,
+        running: false,
       });
     }
     this.#jobs = next;

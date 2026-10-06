@@ -118,7 +118,7 @@ export function App() {
       </main>
 
       <footer className="border-t border-[var(--color-line)] px-4 py-3 text-center text-xs text-[var(--color-ink-faint)] sm:px-6">
-        Local-first. No telemetry. Aircraft data from adsb.fi.
+        Local-first. No telemetry. Each screen credits the service its data comes from.
       </footer>
     </div>
   );

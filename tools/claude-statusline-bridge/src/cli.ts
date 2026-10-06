@@ -82,8 +82,8 @@ const DEFAULT_PUSH_INTERVAL_SECONDS = 60;
  */
 async function pushCommand(flags: Map<string, string>): Promise<number> {
   // Same as install: a containerised server holds a token this side cannot derive.
-  const supplied = flags.get('token') ?? process.env['GCA_BRIDGE_TOKEN'];
-  if (supplied && supplied !== 'true' && !flags.has('token-file')) {
+  const supplied = suppliedToken(flags);
+  if (supplied && !flags.has('token-file')) {
     createService(flags).writeToken(supplied);
   }
   const config = {
@@ -149,8 +149,8 @@ async function installCommand(flags: Map<string, string>): Promise<number> {
   // A server that was handed GCA_BRIDGE_TOKEN has a token this side cannot derive,
   // so accept it explicitly. Without this a containerised server and a host bridge
   // generate different secrets and every post is rejected.
-  const supplied = flags.get('token') ?? process.env['GCA_BRIDGE_TOKEN'];
-  if (supplied && supplied !== 'true') service.writeToken(supplied);
+  const supplied = suppliedToken(flags);
+  if (supplied) service.writeToken(supplied);
 
   const state = await service.install();
   const token = service.readOrCreateToken();
@@ -290,10 +290,11 @@ async function probeServer(
   if (response.status === 401 && body.includes('Invalid bridge token')) {
     lines.push('FAILED: the server rejects this token, so no usage will ever arrive.');
     if (tokenPath) lines.push(`  This side reads ${tokenPath}`);
-    lines.push('  The server was started with a different one. Re-run install with it:');
-    lines.push('    pnpm bridge:install --token "$GCA_BRIDGE_TOKEN"');
-    lines.push('  In Docker, check the container really received it:');
-    lines.push('    docker compose config | grep GCA_BRIDGE_TOKEN');
+    lines.push('  The server was started with a different one. Put it in .env as');
+    lines.push('  GCA_BRIDGE_TOKEN and re-run install, which reads .env itself:');
+    lines.push('    pnpm bridge:install');
+    lines.push('  In Docker, the container reads .env only when it is created. Recreate it:');
+    lines.push('    docker compose up -d');
     return { ok: false, lines };
   }
 
@@ -380,12 +381,29 @@ function bridgeCommand(): string {
   return `${quote(process.execPath)} ${quote(bridgeEntryPath())}`;
 }
 
+/**
+ * The token given with `--token`, or else GCA_BRIDGE_TOKEN as loaded from `.env`.
+ *
+ * An empty flag falls through rather than winning: `--token "$GCA_BRIDGE_TOKEN"` typed
+ * in a shell that never read `.env` arrives empty, and taking that literally would
+ * ignore the token the script itself just loaded.
+ */
+function suppliedToken(flags: Map<string, string>): string | undefined {
+  const flag = flags.get('token');
+  if (flag && flag !== 'true') return flag;
+  return process.env['GCA_BRIDGE_TOKEN'] || undefined;
+}
+
 function parseFlags(args: string[]): Map<string, string> {
   const flags = new Map<string, string>();
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     if (!arg?.startsWith('--')) continue;
-    const [name, inline] = arg.slice(2).split('=', 2);
+    // Split on the first `=` only: base64 tokens end in `=`, and `split('=', 2)` would
+    // silently drop everything after the second one.
+    const equals = arg.indexOf('=');
+    const name = equals === -1 ? arg.slice(2) : arg.slice(2, equals);
+    const inline = equals === -1 ? undefined : arg.slice(equals + 1);
     if (!name) continue;
     if (inline !== undefined) {
       flags.set(name, inline);

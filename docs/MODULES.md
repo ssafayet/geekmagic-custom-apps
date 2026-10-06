@@ -2,14 +2,15 @@
 
 A module declares what it needs and what it shows. The management UI generates the
 rest — form, validation, secret handling, action buttons, previews — from that
-declaration. There is no module-specific code anywhere in the UI or the API layer.
+declaration. The UI and API layer stay generic; the one exception is Claude Usage, whose
+status-line bridge has an ingestion route of its own.
 
 ## The contract
 
 ```ts
 import type { AppModule } from '@gca/module-sdk';
 
-export const weatherModule: AppModule<WeatherSettings, WeatherSnapshot> = {
+export const tidesModule: AppModule<TidesSettings, TidesSnapshot> = {
   manifest, // identity, views, actions, permissions, refresh bounds
   settingsSchema, // JSON Schema 2020-12; validated by Ajv, fills defaults
   uiSchema, // sections, field order, widgets, help text
@@ -24,7 +25,13 @@ export const weatherModule: AppModule<WeatherSettings, WeatherSnapshot> = {
 Register it in `packages/core/src/registry.ts`:
 
 ```ts
-export const builtInModules = [claudeUsageModule, adsbMonitorModule, weatherModule];
+export const builtInModules = [
+  claudeUsageModule,
+  adsbMonitorModule,
+  weatherModule,
+  calendarModule,
+  tidesModule,
+];
 ```
 
 The registry validates every manifest at startup. A malformed module is rejected
@@ -34,21 +41,21 @@ individually and named on the Settings page; it never stops the server.
 
 ```ts
 const manifest: ModuleManifest = {
-  id: 'weather', // lowercase kebab-case, stable forever
+  id: 'tides', // lowercase kebab-case, stable forever
   version: '1.0.0',
   settingsVersion: 1, // bump when settings shape changes
-  displayName: 'Weather',
+  displayName: 'Tides',
   description: 'Shown to the user in the catalog.',
   icon: 'gauge', // a built-in icon id; modules cannot supply paths
   category: 'monitoring',
   singleton: false, // true prevents a second instance
   refresh: { defaultSeconds: 300, minimumSeconds: 60, maximumSeconds: 3600 },
-  permissions: ['network:example'],
+  permissions: ['network:tides'], // a new host needs a new permission; see below
   views: [
-    { id: 'current', displayName: 'Current conditions', selectable: true },
-    { id: 'alert', displayName: 'Severe alert', selectable: false }, // interrupt only
+    { id: 'next', displayName: 'Next tide', selectable: true },
+    { id: 'alert', displayName: 'Storm surge alert', selectable: false }, // interrupt only
   ],
-  actions: [{ id: 'weather.test', displayName: 'Test', confirmation: 'none', timeoutMs: 10_000 }],
+  actions: [{ id: 'tides.test', displayName: 'Test', confirmation: 'none', timeoutMs: 10_000 }],
 };
 ```
 
@@ -78,7 +85,8 @@ An entry written `*.example.com` matches any subdomain of `example.com` and neve
 domain itself. It exists for iCloud, which serves calendars from numbered hosts; use it
 only where one operator alone controls every subdomain.
 
-A new outbound host means a new permission plus an entry in `PERMISSION_HOSTS`
+A new outbound host — `network:tides` above — means a new entry in `MODULE_PERMISSIONS`
+(`packages/module-sdk/src/manifest.ts`) plus one in `PERMISSION_HOSTS`
 (`packages/core/src/scoped-services.ts`). That is deliberate: adding a network
 destination should be a visible change.
 
@@ -100,7 +108,7 @@ const uiSchema: ModuleUiSchema = {
       visibleWhen: { field: 'showDetail', equals: [true] },
     },
   },
-  sectionActions: { place: ['weather.test', 'core.refreshNow'] },
+  sectionActions: { place: ['tides.test', 'core.refreshNow'] },
 };
 ```
 
@@ -126,7 +134,7 @@ require "a credential, or local mode":
 
 ```ts
 async validateSettings(settings, ctx) {
-  const value = { ...defaultSettings, ...(settings as Partial<WeatherSettings>) };
+  const value = { ...defaultSettings, ...(settings as Partial<TidesSettings>) };
   if (value.source === 'api' && !ctx.secretConfigured('apiKey')) {
     return { ok: false, errors: [{ path: '/apiKey', message: 'API mode needs a key.' }] };
   }
@@ -144,7 +152,7 @@ health and on the display. A server test adds every built-in module this way.
 ## Runtime
 
 ```ts
-class WeatherRuntime implements ModuleRuntime<WeatherSnapshot> {
+class TidesRuntime implements ModuleRuntime<TidesSnapshot> {
   async start() {}
   async stop() {}
 
@@ -193,9 +201,9 @@ Modules describe content; the renderer owns typography, spacing and encoding.
 
 ```ts
 {
-  id: 'weather-current',
-  viewId: 'current',
-  title: 'Weather',
+  id: 'tides-next',
+  viewId: 'next',
+  title: 'Tides',
   icon: 'gauge',
   accent: 'cyan',
   priority: 'normal',                       // 'attention' interrupts rotation
@@ -221,7 +229,7 @@ traffic uses `attention`.
 Actions give a module buttons without shipping frontend code.
 
 ```ts
-{ id: 'weather.test', displayName: 'Test', confirmation: 'none', timeoutMs: 10_000 }
+{ id: 'tides.test', displayName: 'Test', confirmation: 'none', timeoutMs: 10_000 }
 ```
 
 `confirmation` is `none`, `confirm` or `destructive`; anything other than `none`

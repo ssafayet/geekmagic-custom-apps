@@ -2,11 +2,11 @@
 
 ## Choosing a mode
 
-| Mode                   | Claude Code detection | Notes                                                                                     |
-| ---------------------- | --------------------- | ----------------------------------------------------------------------------------------- |
-| Native, as your user   | Automatic             | Preferred. The service can see your Claude installation.                                  |
-| Native, system service | No                    | Fine for device + ADS-B only; install the bridge separately.                              |
-| Docker                 | No                    | Install the bridge on the host with `GCA_BRIDGE_TOKEN`; needs routing to the display LAN. |
+| Mode                   | Claude Code detection | Notes                                                                                   |
+| ---------------------- | --------------------- | --------------------------------------------------------------------------------------- |
+| Native, as your user   | Automatic             | Preferred. The service can see your Claude installation.                                |
+| Native, system service | No                    | Fine for ADS-B, Weather and Calendar; install the bridge separately.                    |
+| Docker                 | No                    | Forward Claude usage from the host with `tools/claude-bridge.sh`; no Node needed there. |
 
 Claude Code runs as _you_. A service running as `root` or a dedicated system user
 cannot see your installation — that is not a bug to work around, it is why the bridge
@@ -127,8 +127,10 @@ systemctl --user enable --now geekmagic-custom-apps
 loginctl enable-linger "$USER"   # survive logout
 ```
 
-For a device-only deployment a system-wide unit is fine; use `DynamicUser=yes` with a
-`StateDirectory`, and accept that Claude detection will not work.
+Without Claude Usage a system-wide unit is fine: use `DynamicUser=yes` with
+`StateDirectory=geekmagic-custom-apps` and
+`Environment=GCA_DATA_DIR=/var/lib/geekmagic-custom-apps` — a dynamic user has no home
+directory for the default — and accept that Claude detection will not work.
 
 ## Authentication and the bind address
 
@@ -189,7 +191,9 @@ domain at `127.0.0.1` and then drives this server as if it were same-origin. Wri
 are also refused when the browser's `Origin` names a different site.
 
 A local or LAN install needs no configuration for this. A public DNS name in front of
-a proxy does: set `GCA_PUBLIC_BASE_URL`, or list names in `GCA_ALLOWED_HOSTS`.
+a proxy or tunnel does: set `GCA_PUBLIC_BASE_URL` to it. Further names go in
+`GCA_ALLOWED_HOSTS`. Either one turns the login on, because a name the public can
+resolve means the public can reach the UI.
 
 ## Docker
 
@@ -201,8 +205,15 @@ That is the whole setup on Docker Desktop, OrbStack and Linux. Open
 <http://localhost:3210>.
 
 `compose.yaml` sits at the repo root, so Compose reads a `.env` next to it
-automatically — and it is optional. Every variable in [.env.example](../.env.example)
-is passed through. `docker compose config` shows what the container will actually get.
+automatically — and it is optional. The variables in [.env.example](../.env.example)
+are passed through, except those `compose.yaml` fixes for the container (`GCA_HOST`,
+`GCA_DATA_DIR`, the port inside it) and `GCA_MASTER_KEY_FILE`, which needs the mount
+[below](#keeping-secrets-across-a-volume-rebuild). `docker compose config` shows what
+the container will actually get.
+
+Compose reads `.env` only when it **creates** the container. After editing it, run
+`docker compose up -d`, which recreates the container if anything changed;
+`docker compose restart` keeps the old values.
 
 The image builds the UI and server, then flattens the workspace with `pnpm deploy`,
 so the runtime carries no symlinks into a workspace root that does not exist there.
@@ -240,8 +251,9 @@ mode.
 
 ### Claude Usage
 
-The container cannot see your Claude Code, so the status-line bridge runs on the host
-from this same checkout, sharing `GCA_BRIDGE_TOKEN` through `.env`. The full steps are in
+The container cannot see your Claude Code, so usage is forwarded from the host by
+`tools/claude-bridge.sh` in this same checkout — `sh`, `curl` and `jq`, no Node or pnpm
+— sharing `GCA_BRIDGE_TOKEN` through `.env`. The full steps are in
 [CLAUDE-BRIDGE.md](CLAUDE-BRIDGE.md#docker). The container **must not** mount your home
 directory to obtain Claude credentials; nothing in this project reads them.
 
@@ -253,6 +265,10 @@ volume, mount your own and uncomment the two lines in `compose.yaml`:
 ```bash
 head -c 32 /dev/urandom | base64 > master.key && chmod 600 master.key
 ```
+
+The container runs as uid 1000 (`node`). On Linux, if your own uid differs, give the
+file to that uid (`sudo chown 1000 master.key`) or the server cannot read it. Docker
+Desktop and OrbStack map ownership for you.
 
 ### Upgrading from `docker/compose.yaml`
 
@@ -373,16 +389,17 @@ fault.
 
 ### Error codes and other symptoms
 
-| Symptom                                  | Check                                                                          |
-| ---------------------------------------- | ------------------------------------------------------------------------------ |
-| `DEVICE_ADDRESS_BLOCKED`                 | The address is outside private ranges                                          |
-| `DEVICE_PROFILE_UNKNOWN`                 | Unrecognised firmware; export a report from the Diagnostics page               |
-| Claude shows _Bridge not installed_      | `pnpm bridge:install`, then `pnpm bridge:doctor`                               |
-| Claude shows _waiting_ forever           | Your client renders no status line (VS Code does not): use `pnpm bridge:push`  |
-| _does not answer to that hostname_ (421) | A public hostname: add it to `GCA_ALLOWED_HOSTS` (see [Hostnames](#hostnames)) |
-| Forgot the administrator password        | `pnpm auth:reset` (below)                                                      |
-| Secrets fail after a move                | `master.key` did not come with the data directory                              |
-| `localhost:3210` refused in Docker       | `docker compose ps` and `docker compose logs`; is another stack on the port?   |
+| Symptom                                  | Check                                                                         |
+| ---------------------------------------- | ----------------------------------------------------------------------------- |
+| `DEVICE_ADDRESS_BLOCKED`                 | The address is outside private ranges                                         |
+| `DEVICE_PROFILE_UNKNOWN`                 | Unrecognised firmware; export a report from the Diagnostics page              |
+| Claude shows _Bridge not installed_      | `pnpm bridge:install`, then `pnpm bridge:doctor`                              |
+| Claude shows _waiting_ forever           | Your client renders no status line (VS Code does not): use `pnpm bridge:push` |
+| Docker: Claude shows _No usage received_ | On the host: `tools/claude-bridge.sh doctor`                                  |
+| _does not answer to that hostname_ (421) | A public hostname: set `GCA_PUBLIC_BASE_URL` (see [Hostnames](#hostnames))    |
+| Forgot the administrator password        | `pnpm auth:reset` (below)                                                     |
+| Secrets fail after a move                | `master.key` did not come with the data directory                             |
+| `localhost:3210` refused in Docker       | `docker compose ps` and `docker compose logs`; is another stack on the port?  |
 
 ### Forgotten password
 

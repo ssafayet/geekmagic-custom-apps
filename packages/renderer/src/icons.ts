@@ -25,7 +25,7 @@ const ICON_PATHS: Record<string, string> = {
     'M12 8.4 A3.6 3.6 0 1 0 12.01 8.4 Z M12 2.5 L13.4 5.2 L16.4 4.6 L16.6 7.6 L19.4 8.8 L17.8 11.3 L19.4 13.8 L16.6 15 L16.4 18 L13.4 17.4 L12 20.1 L10.6 17.4 L7.6 18 L7.4 15 L4.6 13.8 L6.2 11.3 L4.6 8.8 L7.4 7.6 L7.6 4.6 L10.6 5.2 Z',
   compass: 'M12 3 A9 9 0 1 0 12.01 3 Z M15.5 8.5 L13.2 13.2 L8.5 15.5 L10.8 10.8 Z',
 
-  // Weather glyphs, adapted from Lucide (ISC; see LICENSE). Multi-element originals are
+  // Weather glyphs, adapted from Lucide (ISC; see THIRD-PARTY-NOTICES.md). Multi-element originals are
   // folded into one path, with circles as two arcs, so they fit this single-`d` model.
   thermometer: 'M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z',
   droplet:

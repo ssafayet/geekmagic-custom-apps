@@ -502,7 +502,17 @@ export class DeviceManager {
       }
     }
 
-    const result = await runtime.adapter.restoreUserContent(payload);
+    let result: { restored: string[]; failed: Array<{ filename: string; reason: string }> };
+    try {
+      result = await runtime.adapter.restoreUserContent(payload);
+    } catch (error) {
+      // A stopped queue fails every later push at once, so a failed restore must still
+      // hand the device back with a working one. Part of the backup may be on the device
+      // by now, so the dashboard image is no longer assumed to be there.
+      this.#store.devices.update(deviceId, { lastUploadHash: null });
+      this.register({ ...runtime.record, lastUploadHash: null });
+      throw error;
+    }
     const combined = { restored: result.restored, failed: [...failed, ...result.failed] };
 
     this.#store.devices.update(deviceId, { albumManagementConsent: false, lastUploadHash: null });

@@ -24,7 +24,7 @@ Setup, layout, tests and working without hardware are in
 [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md). Before opening a pull request:
 
 ```bash
-pnpm format && pnpm typecheck && pnpm test
+pnpm format && pnpm typecheck && pnpm build && pnpm test
 ```
 
 Commits follow [Conventional Commits](https://www.conventionalcommits.org/)

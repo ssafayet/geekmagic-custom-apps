@@ -226,7 +226,7 @@ describe('AirGradient through the runtime', () => {
 
   it('keeps your label in the header for a public monitor', async () => {
     const { runtime } = runtimeFor(
-      settingsWith({ airQualitySource: 'airgradient-public', airGradientLocationId: 178634 }),
+      settingsWith({ airQualitySource: 'airgradient-public', airGradientLocationId: 4217 }),
       [
         ['https://api.open-meteo.com/', { body: FORECAST_SAMPLE }],
         ['https://api.airgradient.com/', { body: PUBLIC_MONITOR_SAMPLE }],

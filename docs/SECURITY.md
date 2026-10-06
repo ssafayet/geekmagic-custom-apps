@@ -93,7 +93,9 @@ accident.
 - Logs redact `apiKey`, `authorization`, `token`, `cookie`, `secret`, `password` and
   `session_id` recursively, in pino's redaction paths and again in a serializer.
 - Audit details are redacted on write, so no credential can reach a stored row.
-- Credentials never appear in a URL.
+- Credentials stay out of URLs, with two exceptions the providers dictate: AirGradient
+  takes its token as a query parameter, and a secret iCal link is itself a URL. Both
+  are stored encrypted, and request URLs are never logged.
 
 ## What is never collected
 

@@ -245,12 +245,12 @@ describe('AirGradientProvider', () => {
     ]);
     const reading = await new AirGradientProvider(http).fetchReading(
       { kind: 'public' },
-      178634,
+      4217,
       signal,
     );
 
     expect(urls[0]).toBe(
-      'https://api.airgradient.com/public/api/v1/world/locations/178634/measures/current',
+      'https://api.airgradient.com/public/api/v1/world/locations/4217/measures/current',
     );
     expect(reading).toMatchObject({ pm25: 120.3, usAqi: 196, co2Ppm: 461, tvocIndex: 119 });
     expect(reading.observedAt).toBe('2026-10-06T03:42:13.000Z');

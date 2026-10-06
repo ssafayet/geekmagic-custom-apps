@@ -7,6 +7,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { AppError, randomToken } from '@gca/shared';
 import type { AppContext } from './context.js';
 import type { AppServer } from './fastify-types.js';
+import { hostnameOf } from './request-guard.js';
 
 const SESSION_COOKIE = 'gca_session';
 const CSRF_COOKIE = 'gca_csrf';
@@ -246,7 +247,12 @@ export function registerAuth(app: AppServer, ctx: AppContext, auth: AuthService)
     async (request, reply) => {
       const body = (request.body ?? {}) as { password?: string };
       const session = await auth.login(String(body.password ?? ''));
-      setSessionCookies(reply, session.id, session.csrf, request.protocol === 'https');
+      setSessionCookies(
+        reply,
+        session.id,
+        session.csrf,
+        arrivedOverHttps(request, ctx.config.publicBaseUrl),
+      );
       return { ok: true, csrf: session.csrf };
     },
   );
@@ -289,6 +295,28 @@ export function registerAuth(app: AppServer, ctx: AppContext, auth: AuthService)
       return { ok: true };
     },
   );
+}
+
+/**
+ * Whether the browser reached this request over HTTPS.
+ *
+ * `request.protocol` only knows that when a trusted proxy says so; without
+ * `GCA_TRUST_PROXY` it reads plain HTTP even behind a TLS-terminating proxy. A
+ * request addressed to an `https:` public base URL counts too, since that name only
+ * reaches the server through such a proxy. Any other name still follows the
+ * protocol, so signing in over a LAN address keeps working.
+ */
+function arrivedOverHttps(request: FastifyRequest, publicBaseUrl: string | undefined): boolean {
+  if (request.protocol === 'https') return true;
+  if (!publicBaseUrl) return false;
+  try {
+    const url = new URL(publicBaseUrl);
+    return (
+      url.protocol === 'https:' && url.hostname.toLowerCase() === hostnameOf(request.headers.host)
+    );
+  } catch {
+    return false;
+  }
 }
 
 function sessionCookie(request: FastifyRequest): string | undefined {

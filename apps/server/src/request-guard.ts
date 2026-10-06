@@ -47,7 +47,7 @@ export function registerRequestGuard(app: AppServer, config: AppConfig): void {
         error: {
           code: 'UNAUTHORIZED',
           message:
-            'This server does not answer to that hostname. Add it to GCA_ALLOWED_HOSTS if it is yours.',
+            'This server does not answer to that hostname. If it is yours, set GCA_PUBLIC_BASE_URL to it (or add it to GCA_ALLOWED_HOSTS); either turns on the login.',
         },
       });
       return;
