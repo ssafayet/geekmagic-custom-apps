@@ -658,6 +658,116 @@ describe('playlist API', () => {
   });
 });
 
+describe('automatic display order', () => {
+  type Entry = { moduleInstanceId: string; viewId: string; dwellSeconds: number; enabled: boolean };
+
+  const addDevice = async () => {
+    const { host } = await startSimulator({ profile: 'stock-ultra' });
+    return jsonBody<{ id: string }>(
+      await harness!.app.inject({ method: 'POST', url: '/api/v1/devices', payload: { host } }),
+    );
+  };
+  const addModule = async (payload: Record<string, unknown>) =>
+    jsonBody<{ id: string }>(
+      await harness!.app.inject({ method: 'POST', url: '/api/v1/module-instances', payload }),
+    );
+  const playlist = async (deviceId: string) =>
+    jsonBody<Entry[]>(
+      await harness!.app.inject({ method: 'GET', url: `/api/v1/devices/${deviceId}/playlist` }),
+    );
+  const setEnabled = (id: string, enabled: boolean) =>
+    harness!.app.inject({
+      method: 'PATCH',
+      url: `/api/v1/module-instances/${id}`,
+      payload: { enabled },
+    });
+
+  it('puts a new module’s primary view on every display, after what is already there', async () => {
+    harness = await createTestApp();
+    const first = await addDevice();
+    const second = await addDevice();
+
+    const claude = await addModule({ moduleId: 'claude-usage' });
+    const adsb = await addModule({
+      moduleId: 'adsb-monitor',
+      settings: { latitude: 51, longitude: 0 },
+    });
+
+    for (const device of [first, second]) {
+      expect(await playlist(device.id)).toMatchObject([
+        { moduleInstanceId: claude.id, viewId: 'rate-limits', dwellSeconds: 20, enabled: true },
+        // The interrupt-only "overhead" view is never scheduled.
+        { moduleInstanceId: adsb.id, viewId: 'aircraft' },
+      ]);
+    }
+  });
+
+  it('gives a display added later the modules that already exist', async () => {
+    harness = await createTestApp();
+    const claude = await addModule({ moduleId: 'claude-usage' });
+    const device = await addDevice();
+
+    expect(await playlist(device.id)).toMatchObject([{ moduleInstanceId: claude.id }]);
+  });
+
+  it('adds a module when it is enabled, but not while it is disabled', async () => {
+    harness = await createTestApp();
+    const device = await addDevice();
+    const claude = await addModule({ moduleId: 'claude-usage', enabled: false });
+    expect(await playlist(device.id)).toEqual([]);
+
+    expect((await setEnabled(claude.id, true)).statusCode).toBe(200);
+    expect(await playlist(device.id)).toMatchObject([{ moduleInstanceId: claude.id }]);
+  });
+
+  it('leaves an arranged order alone when a module is enabled again', async () => {
+    harness = await createTestApp();
+    const device = await addDevice();
+    const claude = await addModule({ moduleId: 'claude-usage' });
+
+    // Someone chose the secondary view and switched it off.
+    await harness.app.inject({
+      method: 'PUT',
+      url: `/api/v1/devices/${device.id}/playlist`,
+      payload: {
+        items: [
+          { moduleInstanceId: claude.id, viewId: 'api-cost', dwellSeconds: 45, enabled: false },
+        ],
+      },
+    });
+    await setEnabled(claude.id, false);
+    await setEnabled(claude.id, true);
+
+    expect(await playlist(device.id)).toEqual([
+      expect.objectContaining({ viewId: 'api-cost', dwellSeconds: 45, enabled: false }),
+    ]);
+  });
+
+  it('uses the configured default dwell time', async () => {
+    harness = await createTestApp();
+    await harness.app.inject({
+      method: 'PATCH',
+      url: '/api/v1/settings',
+      payload: { defaultDwellSeconds: 35 },
+    });
+    const device = await addDevice();
+    await addModule({ moduleId: 'claude-usage' });
+
+    expect(await playlist(device.id)).toMatchObject([{ dwellSeconds: 35 }]);
+  });
+
+  it('tells the UI which views can be placed in rotation', async () => {
+    harness = await createTestApp();
+    const definitions = jsonBody<
+      Array<{ id: string; views: Array<{ id: string; selectable: boolean }> }>
+    >(await harness.app.inject({ method: 'GET', url: '/api/v1/module-definitions' }));
+    expect(definitions.find((definition) => definition.id === 'adsb-monitor')?.views).toEqual([
+      expect.objectContaining({ id: 'aircraft', selectable: true }),
+      expect.objectContaining({ id: 'overhead', selectable: false }),
+    ]);
+  });
+});
+
 describe('internal bridge endpoint', () => {
   it('rejects a request with no or wrong token', async () => {
     harness = await createTestApp();
@@ -743,5 +853,90 @@ describe('internal bridge endpoint', () => {
       payload: {},
     });
     expect(response.statusCode).toBe(404);
+  });
+});
+
+describe('reset', () => {
+  type Plan = {
+    devices: Array<{ id: string }>;
+    modules: Array<{ id: string }>;
+    confirmationToken: string;
+  };
+  const plan = async () =>
+    jsonBody<Plan>(await harness!.app.inject({ method: 'GET', url: '/api/v1/reset/plan' }));
+  const reset = (confirmationToken?: string) =>
+    harness!.app.inject({
+      method: 'POST',
+      url: '/api/v1/reset',
+      payload: confirmationToken ? { confirmationToken } : {},
+    });
+
+  it('removes every display and module and restores default settings', async () => {
+    harness = await createTestApp();
+    const { host } = await startSimulator({ profile: 'stock-ultra' });
+    await harness.app.inject({ method: 'POST', url: '/api/v1/devices', payload: { host } });
+    await harness.app.inject({
+      method: 'POST',
+      url: '/api/v1/module-instances',
+      payload: { moduleId: 'claude-usage' },
+    });
+    await harness.app.inject({
+      method: 'PATCH',
+      url: '/api/v1/settings',
+      payload: { theme: 'contrast', defaultDwellSeconds: 45 },
+    });
+    harness.ctx.store.audit.record({
+      eventType: 'device.upload.unverified',
+      entityType: 'device',
+      severity: 'error',
+      details: { code: 'DEVICE_UPLOAD_UNVERIFIED', message: 'Upload connection dropped.' },
+    });
+
+    const reviewed = await plan();
+    expect(reviewed.devices).toHaveLength(1);
+    expect(reviewed.modules).toHaveLength(1);
+
+    const response = await reset(reviewed.confirmationToken);
+    expect(response.statusCode).toBe(200);
+    expect(jsonBody(response)).toEqual({ removed: { devices: 1, modules: 1 } });
+
+    const status = jsonBody<{ devices: unknown[]; modules: unknown[]; recentErrors: unknown[] }>(
+      await harness.app.inject({ method: 'GET', url: '/api/v1/status' }),
+    );
+    expect(status).toMatchObject({ devices: [], modules: [], recentErrors: [] });
+    expect(harness.ctx.store.playlist.listAll()).toEqual([]);
+    expect(
+      jsonBody(await harness.app.inject({ method: 'GET', url: '/api/v1/settings' })),
+    ).toMatchObject({ theme: 'midnight', defaultDwellSeconds: 20 });
+    // The reset itself is on record.
+    expect(harness.ctx.store.audit.recent(5).map((event) => event.eventType)).toContain(
+      'app.reset',
+    );
+  });
+
+  it('refuses without a reviewed plan, and once its token is spent', async () => {
+    harness = await createTestApp();
+    expect(jsonBody(await reset())).toMatchObject({ error: { code: 'CONFIRMATION_REQUIRED' } });
+
+    const { confirmationToken } = await plan();
+    expect((await reset(confirmationToken)).statusCode).toBe(200);
+    expect(jsonBody(await reset(confirmationToken))).toMatchObject({
+      error: { code: 'CONFIRMATION_REQUIRED' },
+    });
+  });
+
+  it('refuses when something was added after the plan was reviewed', async () => {
+    harness = await createTestApp();
+    const { confirmationToken } = await plan();
+    await harness.app.inject({
+      method: 'POST',
+      url: '/api/v1/module-instances',
+      payload: { moduleId: 'claude-usage' },
+    });
+
+    expect(jsonBody(await reset(confirmationToken))).toMatchObject({
+      error: { code: 'CONFIRMATION_REQUIRED' },
+    });
+    expect(harness.ctx.store.moduleInstances.list()).toHaveLength(1);
   });
 });

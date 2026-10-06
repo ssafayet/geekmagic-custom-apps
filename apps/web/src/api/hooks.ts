@@ -19,6 +19,7 @@ import type {
   ModuleDefinitionDto,
   ModuleInstanceDto,
   PlaylistItemDto,
+  ResetPlan,
   RestorePlan,
   StatusSummaryDto,
   SubnetsResponse,
@@ -413,5 +414,18 @@ export function useSaveSettings(): UseMutationResult<
       await client.invalidateQueries({ queryKey: queryKeys.settings });
       await client.invalidateQueries({ queryKey: queryKeys.status });
     },
+  });
+}
+
+export function useResetPlan(): UseMutationResult<ResetPlan, Error, void> {
+  return useMutation({ mutationFn: () => apiRequest<ResetPlan>('/reset/plan') });
+}
+
+/** Everything cached describes the old configuration, so the whole cache starts over. */
+export function useReset(): UseMutationResult<unknown, Error, { confirmationToken: string }> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (body) => apiRequest('/reset', { method: 'POST', body }),
+    onSuccess: () => client.resetQueries(),
   });
 }

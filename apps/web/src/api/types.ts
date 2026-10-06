@@ -90,6 +90,15 @@ export interface RestorePlan {
   confirmationToken: string;
 }
 
+export interface ResetPlan {
+  devices: Array<{ id: string; name: string; backups: number }>;
+  modules: Array<{ id: string; name: string }>;
+  /** Album backups whose files stay on disk after the reset. */
+  backups: number;
+  backupDirectory: string | null;
+  confirmationToken: string;
+}
+
 export interface SubnetsResponse {
   enabled: boolean;
   subnets: Array<{ interfaceName: string; address: string; cidr: string; hostCount: number }>;

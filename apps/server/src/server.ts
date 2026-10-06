@@ -15,10 +15,12 @@ import {
   registerInternalRoutes,
   registerModuleRoutes,
   registerPlaylistRoutes,
+  registerResetRoutes,
 } from './routes/index.js';
 import { ConfirmationService } from './services/confirmation.js';
 import { DeviceService } from './services/device-service.js';
 import { ModuleService } from './services/module-service.js';
+import { ResetService } from './services/reset-service.js';
 import type { AppServer } from './fastify-types.js';
 
 const API_BODY_LIMIT = 1024 * 1024;
@@ -85,6 +87,7 @@ export async function buildServer(ctx: AppContext): Promise<AppServer> {
     devices: new DeviceService(ctx),
     modules: new ModuleService(ctx),
     confirmations: new ConfirmationService(),
+    reset: new ResetService(ctx),
   };
 
   const auth = new AuthService(ctx);
@@ -94,6 +97,7 @@ export async function buildServer(ctx: AppContext): Promise<AppServer> {
   registerDeviceRoutes(app, ctx, services);
   registerModuleRoutes(app, ctx, services);
   registerPlaylistRoutes(app, ctx);
+  registerResetRoutes(app, ctx, services);
   registerInternalRoutes(app, ctx);
 
   await registerWebUi(app);

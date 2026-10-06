@@ -2,8 +2,6 @@ import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ApiError } from '../api/client.js';
 import {
-  useAddDevice,
-  useAlbumPlan,
   useBackups,
   useDeleteDevice,
   useDeviceAction,
@@ -24,6 +22,7 @@ import {
   inputClass,
 } from '../components/ui.js';
 import { ConfirmDialog } from '../components/ConfirmDialog.js';
+import { AlbumTakeover, BrightnessSlider } from '../components/DeviceControls.js';
 import { Preview } from '../components/Preview.js';
 import { AddDeviceForm } from './AddDeviceForm.js';
 import { formatBytes, profileLabel, relativeTime } from '../format.js';
@@ -111,18 +110,13 @@ function DeviceDetail({ device }: { device: DeviceDto }) {
   const action = useDeviceAction(device.id);
   const remove = useDeleteDevice();
   const backups = useBackups(device.id);
-  const albumPlan = useAlbumPlan();
   const restorePlan = useRestorePlan();
 
   const [name, setName] = useState(device.name);
-  const [brightness, setBrightness] = useState(device.brightness ?? 50);
   const [message, setMessage] = useState<{ tone: 'ok' | 'warn' | 'bad'; text: string } | null>(
     null,
   );
   const [confirmRemove, setConfirmRemove] = useState(false);
-  const [pendingTakeover, setPendingTakeover] = useState<Awaited<
-    ReturnType<typeof albumPlan.mutateAsync>
-  > | null>(null);
   const [pendingRestore, setPendingRestore] = useState<
     (Awaited<ReturnType<typeof restorePlan.mutateAsync>> & { backupId: string }) | null
   >(null);
@@ -153,29 +147,7 @@ function DeviceDetail({ device }: { device: DeviceDto }) {
           </Banner>
         )}
 
-        {needsConsent && (
-          <Banner
-            tone="warn"
-            title="This display needs managed-album setup"
-            actions={
-              <Button
-                variant="primary"
-                busy={albumPlan.isPending}
-                onClick={() =>
-                  run('Fetching the plan', async () => {
-                    setPendingTakeover(await albumPlan.mutateAsync({ deviceId: device.id }));
-                  })
-                }
-              >
-                Review what will change
-              </Button>
-            }
-          >
-            Picture mode on this model is an album slideshow. For a deterministic dashboard the
-            managed image has to be the only picture in the album. Your existing pictures are
-            downloaded here first and can be restored later.
-          </Banner>
-        )}
+        <AlbumTakeover device={device} onResult={setMessage} />
 
         {message && (
           <Banner tone={message.tone === 'ok' ? 'ok' : message.tone}>{message.text}</Banner>
@@ -237,27 +209,12 @@ function DeviceDetail({ device }: { device: DeviceDto }) {
                   : 'This firmware does not expose brightness.'
               }
             >
-              <div className="flex items-center gap-3">
-                <input
-                  id="device-brightness"
-                  type="range"
-                  min={0}
-                  max={100}
-                  disabled={!device.capabilities.canSetBrightness || unsupported}
-                  className="h-2 flex-1 accent-[var(--color-accent)]"
-                  value={brightness}
-                  onChange={(event) => setBrightness(Number(event.target.value))}
-                  onPointerUp={() => run('Brightness', () => update.mutateAsync({ brightness }))}
-                  onKeyUp={(event) => {
-                    if (event.key.startsWith('Arrow')) {
-                      void run('Brightness', () => update.mutateAsync({ brightness }));
-                    }
-                  }}
-                />
-                <span className="w-10 text-right text-sm tabular-nums text-[var(--color-ink)]">
-                  {brightness}
-                </span>
-              </div>
+              <BrightnessSlider
+                device={device}
+                id="device-brightness"
+                disabled={unsupported}
+                onResult={setMessage}
+              />
             </Field>
           </div>
 
@@ -410,41 +367,6 @@ function DeviceDetail({ device }: { device: DeviceDto }) {
           navigate('/devices');
         }}
       />
-
-      <ConfirmDialog
-        open={pendingTakeover !== null}
-        title="Take over the picture album?"
-        destructive
-        confirmLabel="Back up and take over"
-        busy={action.isPending}
-        consequence={pendingTakeover?.consequence ?? ''}
-        onCancel={() => setPendingTakeover(null)}
-        onConfirm={async () => {
-          const token = pendingTakeover?.confirmationToken;
-          setPendingTakeover(null);
-          await run('Album takeover', () =>
-            action.mutateAsync({ action: 'takeover-album', body: { confirmationToken: token } }),
-          );
-        }}
-      >
-        {pendingTakeover && pendingTakeover.filesToDelete.length > 0 && (
-          <div className="rounded-lg border border-[var(--color-line)] bg-[var(--color-surface-2)] p-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-ink-faint)]">
-              Will be removed from the device
-            </p>
-            <ul className="mt-1 grid gap-0.5 text-sm text-[var(--color-ink)]">
-              {pendingTakeover.filesToDelete.map((file) => (
-                <li key={file}>· {file}</li>
-              ))}
-            </ul>
-            <p className="mt-2 text-xs text-[var(--color-ink-muted)]">
-              {pendingTakeover.willBackUp
-                ? 'Each file is downloaded and checksummed here first. Nothing is deleted unless the backup and the new image both verify.'
-                : 'This firmware cannot export album contents, so no backup can be taken.'}
-            </p>
-          </div>
-        )}
-      </ConfirmDialog>
 
       <ConfirmDialog
         open={pendingRestore !== null}

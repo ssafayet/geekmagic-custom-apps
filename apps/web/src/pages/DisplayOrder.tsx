@@ -6,6 +6,7 @@ import {
   useModuleInstances,
   usePlaylist,
   useSavePlaylist,
+  useSettings,
 } from '../api/hooks.js';
 import {
   Banner,
@@ -61,10 +62,17 @@ export function DisplayOrderPage() {
   );
 }
 
-function PlaylistEditor({ deviceId }: { deviceId: string }) {
+export function PlaylistEditor({
+  deviceId,
+  onDirtyChange,
+}: {
+  deviceId: string;
+  onDirtyChange?: (dirty: boolean) => void;
+}) {
   const playlist = usePlaylist(deviceId);
   const instances = useModuleInstances();
   const definitions = useModuleDefinitions();
+  const settings = useSettings();
   const save = useSavePlaylist(deviceId);
 
   const [items, setItems] = useState<DraftItem[]>([]);
@@ -89,8 +97,7 @@ function PlaylistEditor({ deviceId }: { deviceId: string }) {
     for (const instance of instances.data ?? []) {
       const definition = definitions.data?.find((candidate) => candidate.id === instance.moduleId);
       for (const view of definition?.views ?? []) {
-        const declared = definition?.views.find((candidate) => candidate.id === view.id);
-        if (!declared) continue;
+        if (!view.selectable) continue;
         out.push({
           moduleInstanceId: instance.id,
           viewId: view.id,
@@ -118,6 +125,10 @@ function PlaylistEditor({ deviceId }: { deviceId: string }) {
     );
     return JSON.stringify(original) !== JSON.stringify(current);
   }, [items, playlist.data]);
+
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty]);
 
   if (playlist.isLoading || instances.isLoading || definitions.isLoading) return <Spinner4 />;
 
@@ -292,7 +303,7 @@ function PlaylistEditor({ deviceId }: { deviceId: string }) {
                         key: `new-${candidate.moduleInstanceId}-${candidate.viewId}-${current.length}`,
                         moduleInstanceId: candidate.moduleInstanceId,
                         viewId: candidate.viewId,
-                        dwellSeconds: 20,
+                        dwellSeconds: settings.data?.defaultDwellSeconds ?? 20,
                         enabled: true,
                       },
                     ])

@@ -1,6 +1,7 @@
 import { AppError, newId, nowIso, type DeviceDto, type DeviceProbeDto } from '@gca/shared';
 import { capabilitiesFor, splitHostPort } from '@gca/device-core';
 import type { AppContext } from '../context.js';
+import { addToRotation } from './rotation.js';
 
 export interface SaveDeviceInput {
   host: string;
@@ -62,6 +63,8 @@ export class DeviceService {
 
     this.ctx.devices.register(record);
     this.ctx.scheduler.rebuildSchedules();
+    // Modules set up before the display existed belong on it too.
+    addToRotation(this.ctx, { deviceIds: [record.id] });
     this.ctx.store.audit.record({
       eventType: 'device.added',
       entityType: 'device',

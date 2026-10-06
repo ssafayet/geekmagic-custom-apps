@@ -329,6 +329,35 @@ describe('refresh jobs', () => {
     expect(module.refreshCount).toBeGreaterThan(afterFailure);
   });
 
+  it('refreshes at once on request, instead of at the next interval', async () => {
+    const h = setup();
+    const module = h.addModule('weather', [draft('weather-frame', 'Weather')]);
+    h.scheduler.start();
+    await h.scheduler.tick();
+    h.advance(10_000);
+    await h.scheduler.tick();
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const scheduled = module.refreshCount;
+
+    // Settings were just saved; the next scheduled run is still most of an interval away.
+    h.advance(1_000);
+    await h.scheduler.refreshNow('weather', 'settings-changed');
+    expect(module.refreshCount).toBe(scheduled + 1);
+
+    // The immediate run counts as this interval's refresh rather than doubling it.
+    h.advance(10_000);
+    await h.scheduler.tick();
+    expect(module.refreshCount).toBe(scheduled + 1);
+  });
+
+  it('does not refresh on request while the scheduler is stopped', () => {
+    const h = setup();
+    const module = h.addModule('weather', [draft('weather-frame', 'Weather')]);
+
+    expect(h.scheduler.refreshNow('weather', 'settings-changed')).toBeNull();
+    expect(module.refreshCount).toBe(0);
+  });
+
   it('does not schedule a refresh for a module that is not running', async () => {
     const h = setup();
     h.addModule('a', [draft('a-frame', 'A')]);

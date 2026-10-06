@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ApiError } from '../api/client.js';
 import { useDismissProblems, useStatus } from '../api/hooks.js';
 import { Banner, Button, Card, EmptyState, HealthBadge, Spinner4 } from '../components/ui.js';
@@ -8,6 +8,7 @@ import { profileLabel, relativeTime } from '../format.js';
 export function OverviewPage() {
   const status = useStatus();
   const dismiss = useDismissProblems();
+  const navigate = useNavigate();
 
   if (status.isLoading) return <Spinner4 />;
   if (status.isError) {
@@ -27,8 +28,27 @@ export function OverviewPage() {
   const data = status.data;
   if (!data) return null;
 
+  const unfinished = data.devices.length === 0 || data.modules.length === 0;
+
   return (
     <div className="grid gap-5">
+      {unfinished && (
+        <Banner
+          tone="info"
+          title={data.devices.length === 0 ? 'No display yet' : 'Nothing to show yet'}
+          actions={
+            <Button variant="primary" onClick={() => navigate('/setup')}>
+              {data.devices.length === 0 && data.modules.length === 0
+                ? 'Start the setup guide'
+                : 'Continue setup'}
+            </Button>
+          }
+        >
+          The setup guide walks through adding a display, choosing what it shows and the order it
+          shows it in.
+        </Banner>
+      )}
+
       {data.server.authenticationRequired && (
         <Banner tone="info" title="This server is reachable from your network">
           Signing in is required. Change the administrator password in Settings.
@@ -41,7 +61,7 @@ export function OverviewPage() {
             {data.devices.length === 0 ? (
               <EmptyState title="No displays yet">
                 <Link to="/setup" className="text-[var(--color-accent)] underline">
-                  Run the setup wizard
+                  Open the setup guide
                 </Link>{' '}
                 to add your first GeekMagic display.
               </EmptyState>

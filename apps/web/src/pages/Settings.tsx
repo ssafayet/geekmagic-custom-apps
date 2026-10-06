@@ -1,15 +1,20 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ApiError } from '../api/client.js';
 import {
   useAuthState,
   useChangePassword,
   useHealth,
+  useReset,
+  useResetPlan,
   useSaveSettings,
   useSettings,
 } from '../api/hooks.js';
+import { ConfirmDialog } from '../components/ConfirmDialog.js';
+import { forgetSetupDismissed } from './setup/shared.js';
 import { Banner, Button, Card, Field, Kv, Spinner4, Switch, inputClass } from '../components/ui.js';
 import { absoluteTime } from '../format.js';
-import type { CoreSettingsDto } from '../api/types.js';
+import type { CoreSettingsDto, ResetPlan } from '../api/types.js';
 
 export function SettingsPage() {
   const settings = useSettings();
@@ -239,6 +244,120 @@ export function SettingsPage() {
           </div>
         )}
       </Card>
+
+      <ResetCard />
+    </div>
+  );
+}
+
+/**
+ * Starts the whole configuration over. The plan is fetched first so the dialog names
+ * every display and module that goes, and the server refuses a reset whose plan has
+ * changed since it was shown.
+ */
+function ResetCard() {
+  const navigate = useNavigate();
+  const fetchPlan = useResetPlan();
+  const reset = useReset();
+  const [plan, setPlan] = useState<ResetPlan | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const describe = (caught: unknown) =>
+    caught instanceof ApiError ? caught.message : String(caught);
+
+  return (
+    <Card
+      title="Reset"
+      description="Remove every display and module and return to a fresh install, then run the setup guide again."
+    >
+      {error && (
+        <div className="mb-4">
+          <Banner tone="bad">{error}</Banner>
+        </div>
+      )}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-[var(--color-ink-muted)]">
+          Your administrator password and any album backups on disk are kept.
+        </p>
+        <Button
+          variant="danger"
+          busy={fetchPlan.isPending}
+          onClick={async () => {
+            setError(null);
+            try {
+              setPlan(await fetchPlan.mutateAsync());
+            } catch (caught) {
+              setError(describe(caught));
+            }
+          }}
+        >
+          Reset everything…
+        </Button>
+      </div>
+
+      <ConfirmDialog
+        open={plan !== null}
+        title="Reset everything?"
+        destructive
+        confirmLabel="Reset everything"
+        busy={reset.isPending}
+        consequence={
+          plan && plan.devices.length === 0 && plan.modules.length === 0
+            ? 'Nothing is configured, so only the preferences return to their defaults.'
+            : 'This cannot be undone. The displays keep showing their last picture until you add them again.'
+        }
+        onCancel={() => setPlan(null)}
+        onConfirm={async () => {
+          if (!plan) return;
+          try {
+            await reset.mutateAsync({ confirmationToken: plan.confirmationToken });
+            setPlan(null);
+            forgetSetupDismissed();
+            navigate('/setup');
+          } catch (caught) {
+            setPlan(null);
+            setError(describe(caught));
+          }
+        }}
+      >
+        {plan && <ResetPlanDetails plan={plan} />}
+      </ConfirmDialog>
+    </Card>
+  );
+}
+
+function ResetPlanDetails({ plan }: { plan: ResetPlan }) {
+  const list = (items: string[]) => (items.length > 0 ? items.join(', ') : 'none');
+  return (
+    <div className="grid gap-3">
+      <div className="rounded-lg border border-[var(--color-line)] bg-[var(--color-surface-2)] p-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-ink-faint)]">
+          Will be removed
+        </p>
+        <ul className="mt-1 grid gap-0.5 text-sm text-[var(--color-ink)]">
+          <li>
+            · Displays and their display order: {list(plan.devices.map((device) => device.name))}
+          </li>
+          <li>
+            · Modules with their settings and saved credentials:{' '}
+            {list(plan.modules.map((module) => module.name))}
+          </li>
+          <li>· Preferences such as theme, time zone and screen time, back to defaults</li>
+        </ul>
+        <p className="mt-2 text-xs text-[var(--color-ink-muted)]">
+          Not touched: the administrator password, the activity log, and changes a module made
+          outside this app, such as an installed Claude status-line bridge.
+        </p>
+      </div>
+
+      {plan.backups > 0 && (
+        <Banner tone="warn" title="Album pictures are not put back">
+          {plan.backups} album backup{plan.backups === 1 ? '' : 's'} stay on disk
+          {plan.backupDirectory ? ` in ${plan.backupDirectory}` : ''}, but can no longer be restored
+          from this app. To put pictures back on a display, restore them from its Devices page
+          before resetting.
+        </Banner>
+      )}
     </div>
   );
 }

@@ -79,7 +79,8 @@ export interface ModuleDefinitionDto {
   singleton: boolean;
   refresh: { defaultSeconds: number; minimumSeconds: number; maximumSeconds: number };
   permissions: string[];
-  views: Array<{ id: string; displayName: string; description?: string }>;
+  /** `selectable` views can be placed in a display order; the rest only interrupt. */
+  views: Array<{ id: string; displayName: string; description?: string; selectable: boolean }>;
   actions: Array<{
     id: string;
     displayName: string;

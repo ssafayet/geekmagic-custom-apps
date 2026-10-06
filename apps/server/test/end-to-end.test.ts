@@ -211,3 +211,32 @@ describe('module to device, end to end', () => {
     expect(latest).not.toBe(first);
   }, 45_000);
 });
+
+describe('saving module settings', () => {
+  it('fetches with the new settings straight away instead of at the next poll', async () => {
+    harness = await createTestApp({ background: true });
+
+    const created = jsonBody<{ id: string; lastRefreshAt: string | null }>(
+      await harness.app.inject({
+        method: 'POST',
+        url: '/api/v1/module-instances',
+        payload: { moduleId: 'claude-usage' },
+      }),
+    );
+    // A new module has data before the response returns, not after the startup jitter.
+    expect(created.lastRefreshAt).not.toBeNull();
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const saved = jsonBody<{ lastRefreshAt: string | null }>(
+      await harness.app.inject({
+        method: 'PATCH',
+        url: `/api/v1/module-instances/${created.id}`,
+        payload: { settings: { accent: 'blue' } },
+      }),
+    );
+    // Claude Usage polls every 60 seconds; this refresh came from the save.
+    expect(Date.parse(saved.lastRefreshAt ?? '')).toBeGreaterThan(
+      Date.parse(created.lastRefreshAt ?? ''),
+    );
+  });
+});

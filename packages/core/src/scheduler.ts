@@ -1,5 +1,5 @@
 import { nowIso, toAppError } from '@gca/shared';
-import type { ModuleFrame } from '@gca/module-sdk';
+import type { ModuleFrame, RefreshReason } from '@gca/module-sdk';
 import type { PlaylistItemRecord, Store } from '@gca/database';
 import { FrameRenderer, type EncodedFrame } from '@gca/renderer';
 import type { DeviceManager } from './device-manager.js';
@@ -160,6 +160,25 @@ export class Scheduler {
       });
     }
     this.#jobs = next;
+  }
+
+  /**
+   * Fetches an instance's data now rather than at its next interval.
+   *
+   * After a settings change the runtime restarts holding no data, or data fetched for
+   * the old settings, and the next scheduled run can be most of a poll interval away —
+   * ten minutes for weather. The run counts as this interval's refresh. Null while the
+   * scheduler is stopped, since it refreshes nothing then.
+   */
+  refreshNow(instanceId: string, reason: RefreshReason): Promise<void> | null {
+    if (!this.#running || !this.#runtimes.get(instanceId)) return null;
+    const job = this.#jobs.get(instanceId);
+    if (job) job.nextRunAt = this.#now() + job.intervalMs;
+    // A failure is recorded as the instance's health, which is where it is reported.
+    return this.#runtimes.refresh(instanceId, reason).then(
+      () => undefined,
+      () => undefined,
+    );
   }
 
   rebuildSchedules(): void {

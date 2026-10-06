@@ -7,6 +7,14 @@ import {
 } from '@gca/shared';
 import { migrateToCurrent } from '@gca/core';
 import type { AppContext } from '../context.js';
+import { addToRotation } from './rotation.js';
+
+/**
+ * How long a save waits for the first fetch with the new settings, so the response —
+ * and the preview the UI reloads on it — already shows real data. Long enough for a
+ * normal provider round trip; a slower fetch finishes in the background.
+ */
+const FRESH_DATA_WAIT_MS = 8_000;
 
 export interface UpdateInstanceInput {
   name?: string;
@@ -42,6 +50,7 @@ export class ModuleService {
         id: view.id,
         displayName: view.displayName,
         ...(view.description ? { description: view.description } : {}),
+        selectable: view.selectable !== false,
       })),
       actions: (entry.manifest.actions ?? []).map((action) => ({
         id: action.id,
@@ -111,6 +120,8 @@ export class ModuleService {
     });
 
     await this.reload(instanceId);
+    addToRotation(this.ctx, { instanceIds: [instanceId] });
+    await this.awaitFreshData(instanceId, 'startup');
     return this.toDto(instanceId);
   }
 
@@ -167,6 +178,13 @@ export class ModuleService {
     });
 
     await this.reload(instanceId);
+    if (input.enabled === true && !record.enabled) {
+      addToRotation(this.ctx, { instanceIds: [instanceId] });
+    }
+    // A rename alone changes nothing the module fetches.
+    if (input.settings || input.secrets || input.enabled) {
+      await this.awaitFreshData(instanceId, 'settings-changed');
+    }
     this.ctx.events.emit('module.settings-changed', { instanceId });
     return this.toDto(instanceId);
   }
@@ -281,6 +299,26 @@ export class ModuleService {
   async listDtos(): Promise<ModuleInstanceDto[]> {
     const records = this.ctx.store.moduleInstances.list();
     return Promise.all(records.map((record) => this.toDto(record.id)));
+  }
+
+  /**
+   * A restarted runtime holds no data, or data fetched for the old settings, until it
+   * refreshes; without this it waits for its next poll and shows "Starting up".
+   */
+  private async awaitFreshData(
+    instanceId: string,
+    reason: 'startup' | 'settings-changed',
+  ): Promise<void> {
+    const refreshed = this.ctx.scheduler.refreshNow(instanceId, reason);
+    if (!refreshed) return;
+    let timer: NodeJS.Timeout | undefined;
+    await Promise.race([
+      refreshed,
+      new Promise((resolve) => {
+        timer = setTimeout(resolve, FRESH_DATA_WAIT_MS);
+      }),
+    ]);
+    clearTimeout(timer);
   }
 
   private writeSecrets(

@@ -1,4 +1,4 @@
-import { NavLink, Route, Routes, Navigate } from 'react-router-dom';
+import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import clsx from 'clsx';
 import { useAuthState, useHealth, useLogout, useStatus } from './api/hooks.js';
 import { Button, Spinner4 } from './components/ui.js';
@@ -8,7 +8,8 @@ import { ModulesPage } from './pages/Modules.js';
 import { DisplayOrderPage } from './pages/DisplayOrder.js';
 import { SettingsPage } from './pages/Settings.js';
 import { DiagnosticsPage } from './pages/Diagnostics.js';
-import { OnboardingPage } from './pages/Onboarding.js';
+import { SetupPage } from './pages/setup/Setup.js';
+import { rememberSetupDismissed, setupWasDismissed } from './pages/setup/shared.js';
 import { SignInPage } from './pages/SignIn.js';
 
 const NAV = [
@@ -24,6 +25,8 @@ export function App() {
   const health = useHealth();
   const auth = useAuthState();
   const logout = useLogout();
+  // The setup guide is a focused flow; the section links would only pull people out of it.
+  const inSetup = useLocation().pathname.startsWith('/setup');
 
   // An unreachable server is not a locked one: fall through and let the pages say so.
   const locked = auth.data ? auth.data.required && !auth.data.authenticated : false;
@@ -43,6 +46,15 @@ export function App() {
               </span>
             </div>
             <div className="flex items-center gap-3">
+              {inSetup && !locked && (
+                <Link
+                  to="/"
+                  onClick={rememberSetupDismissed}
+                  className="text-sm font-medium text-[var(--color-ink-muted)] hover:text-[var(--color-ink)]"
+                >
+                  Exit setup
+                </Link>
+              )}
               {health.isError && (
                 <span className="text-xs font-medium text-[var(--color-bad)]">
                   Server unreachable
@@ -56,7 +68,7 @@ export function App() {
             </div>
           </div>
 
-          {!locked && (
+          {!locked && !inSetup && (
             <nav aria-label="Sections" className="-mx-1 overflow-x-auto">
               <ul className="flex gap-1">
                 {NAV.map((item) => (
@@ -91,7 +103,8 @@ export function App() {
         ) : (
           <Routes>
             <Route path="/" element={<Home />} />
-            <Route path="/setup" element={<OnboardingPage />} />
+            <Route path="/setup" element={<SetupPage />} />
+            <Route path="/setup/:step" element={<SetupPage />} />
             <Route path="/devices" element={<DevicesPage />} />
             <Route path="/devices/:deviceId" element={<DevicesPage />} />
             <Route path="/modules" element={<ModulesPage />} />
@@ -111,10 +124,16 @@ export function App() {
   );
 }
 
-/** A first run has nothing configured yet; send it through setup, not empty cards. */
+/**
+ * A first run has nothing configured yet; send it through setup, not empty cards.
+ * Someone who left the guide on purpose is not sent back; the overview offers it.
+ */
 function Home() {
   const status = useStatus();
   const needsOnboarding =
-    status.isSuccess && status.data.devices.length === 0 && status.data.modules.length === 0;
+    status.isSuccess &&
+    status.data.devices.length === 0 &&
+    status.data.modules.length === 0 &&
+    !setupWasDismissed();
   return needsOnboarding ? <Navigate to="/setup" replace /> : <OverviewPage />;
 }
