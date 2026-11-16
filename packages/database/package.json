@@ -18,7 +18,7 @@
   "dependencies": {
     "@gca/shared": "workspace:*",
     "@gca/secrets": "workspace:*",
-    "better-sqlite3": "^13.0.3"
+    "better-sqlite3": "^13.1.1"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.12"
